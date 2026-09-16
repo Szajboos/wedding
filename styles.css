@@ -84,20 +84,18 @@ svg { width: 22px; height: 22px; fill: currentColor; display: block; }
   z-index: 30;
   display: flex;
   align-items: center;
-  justify-content: flex-end;
-  gap: 12px;
-  padding: calc(env(safe-area-inset-top, 0px) + 14px) 16px 12px;
+  justify-content: center;
+  padding: calc(env(safe-area-inset-top, 0px) + 10px) 16px 10px;
   background: color-mix(in srgb, var(--ivory) 88%, transparent);
   backdrop-filter: saturate(180%) blur(12px);
   -webkit-backdrop-filter: saturate(180%) blur(12px);
   border-bottom: 1px solid var(--line);
 }
 
+/* .brand jest w normalnym przeplywie, wiec naglowek rosnie razem z nim
+   (wczesniej byl absolute i data wystawala pod dolna krawedz naglowka). */
 .brand {
-  position: absolute;
-  top: 4px;
-  left: 50%;
-  transform: translateX(-50%);
+  min-width: 0;
   max-width: calc(100% - 120px);
   text-align: center;
 }
@@ -112,8 +110,13 @@ svg { width: 22px; height: 22px; fill: currentColor; display: block; }
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.brand p { margin: 2px 0 0; font-size: .82rem; letter-spacing: .08em; text-transform: uppercase; color: var(--rose); }
+.brand p { margin: -4px 0 0; font-size: .82rem; letter-spacing: .08em; text-transform: uppercase; color: var(--rose); }
 
+#btn-name {
+  position: absolute;
+  right: 8px;
+  top: calc(env(safe-area-inset-top, 0px) + 10px);
+}
 .who {
   font-size: .78rem;
   max-width: 9ch;
