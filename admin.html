@@ -32,6 +32,8 @@
   input { font:inherit; padding:11px 14px; border-radius:10px; border:1px solid #333; background:#1A1C19; color:var(--ink); width:min(320px,100%); }
   h2 { font-size:.92rem; text-transform:uppercase; letter-spacing:.08em; color:var(--soft); margin:22px 0 4px; }
   .bars div { display:flex; justify-content:space-between; padding:5px 0; border-bottom:1px solid #2C2F29; font-size:.85rem; }
+  .bars div.podium { font-size:1rem; font-weight:600; }
+  .del-report { font-size:.76rem; padding:4px 10px; margin-left:6px; background:var(--bad); color:#fff; white-space:nowrap; }
   .files { grid-template-columns:repeat(auto-fill,minmax(100px,1fr)); }
   .fcard { position:relative; border-radius:10px; overflow:hidden; background:#1A1C19; aspect-ratio:1; }
   .fcard img { width:100%; height:100%; object-fit:cover; display:block; }
@@ -137,23 +139,58 @@
 
     $('#folder').href = d.folderUrl;
 
-    $('#guests').innerHTML = (d.topGuests || []).map(function (g) {
-      return '<div><span>' + esc(g.guest) + '</span><span>' + g.count + '</span></div>';
+    var medals = ['🥇', '🥈', '🥉'];
+    $('#guests').innerHTML = (d.topGuests || []).map(function (g, i) {
+      var label = (medals[i] ? medals[i] + ' ' : (i + 1) + '. ') + esc(g.guest);
+      return '<div' + (i < 3 ? ' class="podium"' : '') + '><span>' + label + '</span><span>' + g.count + '</span></div>';
     }).join('') || '<div><span>brak danych</span><span></span></div>';
 
     $('#events').innerHTML = (d.events || []).map(function (e) {
       var isReport = e.type === 'report';
       var cls = isReport ? 'warn' : /err|error/.test(e.type) ? 'err' : /ok/.test(e.type) ? 'okk' : '';
+      var fid = isReport ? String(e.msg || '').split(' — ')[0] : '';
       return '<tr' + (isReport ? ' class="report-row"' : '') + '><td class="t">' + new Date(e.ts).toLocaleTimeString('pl-PL') + '</td>' +
              '<td class="t ' + cls + '">' + (isReport ? '⚠ ' : '') + esc(e.type) + '</td>' +
-             '<td>' + esc(e.guest ? e.guest + ' · ' : '') + esc(e.msg) + '</td></tr>';
+             '<td>' + esc(e.guest ? e.guest + ' · ' : '') + esc(e.msg) +
+             (isReport && fid ? ' <button class="del-report" data-id="' + esc(fid) + '" type="button">Usuń plik</button>' : '') +
+             '</td></tr>';
     }).join('') || '<tr><td>brak zdarzen</td></tr>';
+
+    Array.prototype.forEach.call($('#events').querySelectorAll('.del-report'), function (btn) {
+      btn.addEventListener('click', function () {
+        var id = btn.dataset.id;
+        if (!confirm('Usunąć zgłoszony plik z galerii?')) return;
+        btn.disabled = true; btn.textContent = '...';
+        trashFile(id).then(function () {
+          btn.textContent = 'Usunięto';
+          loadFiles();
+        }).catch(function () {
+          alert('Nie udało się usunąć pliku.');
+          btn.disabled = false; btn.textContent = 'Usuń plik';
+        });
+      });
+    });
   }
 
   function esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
       return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c];
     });
+  }
+
+  /* Wspolna funkcja usuwania — uzywana przez siatke plikow i przycisk przy zgloszeniu. */
+  function trashFile(id) {
+    return fetch(API + '?action=config&_=' + Date.now())
+      .then(function (r) { return r.json(); })
+      .then(function (cfg) {
+        if (!cfg.ok) throw new Error(cfg.error);
+        return fetch('https://www.googleapis.com/drive/v3/files/' + id, {
+          method: 'PATCH',
+          headers: { Authorization: 'Bearer ' + cfg.token, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ trashed: true })
+        });
+      })
+      .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); });
   }
 
   /* Lista plikow z mozliwoscia usuniecia cudzego zdjecia/filmu przez admina. */
@@ -169,13 +206,13 @@
         return fetch('https://www.googleapis.com/drive/v3/files?' + params, {
           headers: { Authorization: 'Bearer ' + cfg.token }
         }).then(function (r) { return r.json(); }).then(function (d) {
-          renderFiles(d.files || [], cfg.token);
+          renderFiles(d.files || []);
         });
       })
       .catch(function (e) { $('#files').innerHTML = '<p class="err">Nie udalo sie wczytac plikow: ' + esc(e.message) + '</p>'; });
   }
 
-  function renderFiles(list, token) {
+  function renderFiles(list) {
     $('#files').innerHTML = list.map(function (f) {
       var isVid = String(f.mimeType || '').indexOf('video') === 0;
       var guest = (f.appProperties && f.appProperties.guest) || 'gosc';
@@ -193,14 +230,8 @@
         var card = btn.closest('.fcard');
         var id = card.dataset.id;
         if (!confirm('Usunac ten plik z galerii? Trafi do Koszu na Dysku (30 dni na odzyskanie).')) return;
-        fetch('https://www.googleapis.com/drive/v3/files/' + id, {
-          method: 'PATCH',
-          headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ trashed: true })
-        }).then(function (r) {
-          if (!r.ok) throw new Error('HTTP ' + r.status);
-          card.remove();
-        }).catch(function () { alert('Nie udalo sie usunac pliku.'); });
+        trashFile(id).then(function () { card.remove(); })
+          .catch(function () { alert('Nie udalo sie usunac pliku.'); });
       });
     });
   }
