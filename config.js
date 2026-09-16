@@ -24,8 +24,9 @@ window.WESELE_CONFIG = {
   showLeaderboard: true,
 
   /* Klucz panelu admina CELOWO nie jest tu wpisany — ten plik jest publiczny
-     (repo GitHub Pages). Wejdź na admin.html?key=... z kluczem z Code.gs (ADMIN_KEY)
-     i zapisz ten adres prywatnie (np. zakładka), nigdy nie wklejaj go do gita. */
+     (repo GitHub Pages). Klucz mieszka w Apps Script jako Właściwość skryptu
+     ADMIN_KEY. Otwórz admin.html i wpisz go raz na sesję przeglądarki — panel
+     go zapamięta (sessionStorage) do zamknięcia karty. Nigdy nie wklejaj go do gita. */
 
   /* Limity i zachowanie */
   maxPhotoMB: 20,          // limit dla zdjęć — odrzuca większe z czytelnym komunikatem

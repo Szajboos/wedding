@@ -34,6 +34,7 @@
   .bars div { display:flex; justify-content:space-between; padding:5px 0; border-bottom:1px solid #2C2F29; font-size:.85rem; }
   .bars div.podium { font-size:1rem; font-weight:600; }
   .del-report { font-size:.76rem; padding:4px 10px; margin-left:6px; background:var(--bad); color:#fff; white-space:nowrap; }
+  .rthumb { width:32px; height:32px; object-fit:cover; border-radius:6px; vertical-align:middle; margin-left:6px; }
   .files { grid-template-columns:repeat(auto-fill,minmax(100px,1fr)); }
   .fcard { position:relative; border-radius:10px; overflow:hidden; background:#1A1C19; aspect-ratio:1; }
   .fcard.reported { outline:2px solid var(--bad); outline-offset:-2px; }
@@ -92,8 +93,15 @@
 (function () {
   var CFG = window.WESELE_CONFIG || {};
   var API = CFG.apiUrl || '';
-  var key = new URLSearchParams(location.search).get('key') ||
-            sessionStorage.getItem('wesele.adminKey') || '';
+  var urlKey = new URLSearchParams(location.search).get('key');
+  var key = urlKey || sessionStorage.getItem('wesele.adminKey') || '';
+  if (urlKey) {
+    // Klucz z ?key= trafia od razu do sessionStorage i znika z paska adresu —
+    // inaczej zostaje w historii przegladarki, synchronizowanych zakladkach
+    // i kazdym zrzucie ekranu adresu.
+    sessionStorage.setItem('wesele.adminKey', urlKey);
+    history.replaceState(null, '', location.pathname);
+  }
   var timer = null;
   var reportedIds = {};
 
@@ -114,7 +122,7 @@
       .then(function (r) { return r.json(); })
       .then(function (d) {
         if (!d.ok) {
-          setStatus(false, d.error || 'blad');
+          setStatus(false, esc(d.error || 'blad'));
           $('#need-key').hidden = false;
           $('#panel').hidden = true;
           return;
@@ -126,7 +134,7 @@
         render(d);
         loadFiles();
       })
-      .catch(function (e) { setStatus(false, 'brak połączenia z backendem (' + e.message + ')'); });
+      .catch(function (e) { setStatus(false, 'brak połączenia z backendem (' + esc(e.message) + ')'); });
   }
 
   function tile(n, l) { return '<div class="card"><div class="n">' + n + '</div><div class="l">' + l + '</div></div>'; }
@@ -144,11 +152,8 @@
     renderSiteToggle(d.siteEnabled !== false);
 
     reportedIds = {};
-    (d.events || []).forEach(function (e) {
-      if (e.type === 'report') {
-        var fid = String(e.msg || '').split(' — ')[0];
-        if (fid) reportedIds[fid] = true;
-      }
+    (d.reports || []).forEach(function (r) {
+      if (r && r.id) reportedIds[r.id] = true;
     });
 
     var free = d.quota && d.quota.limit
@@ -162,6 +167,7 @@
       tile(d.videos, 'filmów') +
       tile('<span class="' + (d.counters.err ? 'err' : 'okk') + '">' + d.counters.err + '</span>', 'błędów') +
       tile('<span class="' + (d.counters.report ? 'err' : 'okk') + '">' + (d.counters.report || 0) + '</span>', 'zgłoszeń') +
+      tile('<span class="' + (d.counters.badkey ? 'err' : 'okk') + '">' + (d.counters.badkey || 0) + '</span>', 'złych kluczy') +
       tile(free, 'wolne na Dysku');
 
     $('#folder').href = d.folderUrl;
@@ -179,7 +185,10 @@
       return '<tr' + (isReport ? ' class="report-row"' : '') + '><td class="t">' + new Date(e.ts).toLocaleTimeString('pl-PL') + '</td>' +
              '<td class="t ' + cls + '">' + (isReport ? '⚠ ' : '') + esc(e.type) + '</td>' +
              '<td>' + esc(e.guest ? e.guest + ' · ' : '') + esc(e.msg) +
-             (isReport && fid ? ' <button class="del-report" data-id="' + esc(fid) + '" type="button">Usuń plik</button>' : '') +
+             (isReport && fid
+               ? ' <img class="rthumb" src="https://drive.google.com/thumbnail?id=' + esc(fid) + '&sz=w120" loading="lazy" alt="">' +
+                 ' <button class="del-report" data-id="' + esc(fid) + '" type="button">Usuń plik</button>'
+               : '') +
              '</td></tr>';
     }).join('') || '<tr><td>brak zdarzeń</td></tr>';
 
