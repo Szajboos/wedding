@@ -377,6 +377,22 @@ svg { width: 22px; height: 22px; fill: currentColor; display: block; }
   -webkit-user-select: none;
 }
 .lb-stage iframe { width: min(100%, 1000px); height: 100%; border: 0; }
+.lb-video-hint {
+  position: absolute;
+  bottom: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1;
+  font: inherit;
+  font-size: .8rem;
+  color: #fff;
+  background: rgba(20, 22, 19, .65);
+  border: 1px solid rgba(255, 255, 255, .3);
+  border-radius: var(--radius-sm);
+  padding: 6px 12px;
+  max-width: min(90%, 420px);
+  cursor: pointer;
+}
 .lb-stage .lb-loading { position: absolute; color: #fff9; font-size: .85rem; }
 
 .lb-btn {

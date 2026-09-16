@@ -382,14 +382,17 @@
   }
 
   function enqueue(files) {
-    var maxBytes = (CFG.maxFileMB || 2048) * 1024 * 1024;
+    var maxPhotoMB = CFG.maxPhotoMB || 20;
+    var maxVideoMB = CFG.maxVideoMB || 2048;
     var seen = store.getJSON('sent', []);
     var added = 0, skipped = 0;
 
     Array.prototype.forEach.call(files, function (file) {
       if (!file || !file.size) return;
-      if (file.size > maxBytes) {
-        toast('Plik ' + file.name + ' jest za duży (limit ' + (CFG.maxFileMB || 2048) + ' MB).', true);
+      var isVid = String(file.type || '').indexOf('video') === 0;
+      var limitMB = isVid ? maxVideoMB : maxPhotoMB;
+      if (file.size > limitMB * 1024 * 1024) {
+        toast('Plik ' + file.name + ' jest za duży (limit ' + limitMB + ' MB).', true);
         return;
       }
       var key = dedupeKey(file);
@@ -816,6 +819,13 @@
       frame.allow = 'autoplay; fullscreen';
       frame.setAttribute('allowfullscreen', '');
       stage.appendChild(frame);
+
+      var hint = document.createElement('button');
+      hint.type = 'button';
+      hint.className = 'lb-video-hint';
+      hint.textContent = 'Film się nie odtwarza? Dysk może go jeszcze przetwarzać — kliknij, aby odświeżyć';
+      hint.onclick = function () { frame.src = frame.src; };
+      stage.appendChild(hint);
     } else {
       var img = document.createElement('img');
       img.alt = 'Zdjęcie od ' + guestOf(f);

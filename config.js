@@ -17,7 +17,8 @@ window.WESELE_CONFIG = {
   adminKey: 'twojstaryjekomary',
 
   /* Limity i zachowanie */
-  maxFileMB: 2048,        // odrzuca większe pliki z czytelnym komunikatem
+  maxPhotoMB: 20,          // limit dla zdjęć — odrzuca większe z czytelnym komunikatem
+  maxVideoMB: 2048,        // limit dla filmów (2 GB)
   parallelUploads: 10,     // ile plików naraz (2 to dobry kompromis na LTE)
   galleryRefreshSec: 30,  // co ile sekund dociągać nowe zdjęcia
   pageSize: 60            // ile kafelków na stronę galerii
