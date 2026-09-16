@@ -469,6 +469,21 @@
     return [file.name, file.size, file.lastModified || 0].join('|');
   }
 
+  var MIME_BY_EXT = {
+    jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif',
+    webp: 'image/webp', heic: 'image/heic', heif: 'image/heic',
+    mp4: 'video/mp4', m4v: 'video/mp4', mov: 'video/quicktime', '3gp': 'video/3gpp',
+    webm: 'video/webm', mkv: 'video/x-matroska'
+  };
+  /** Niektore telefony (Android) wysylaja pliki wideo z pustym file.type —
+      wtedy zgadujemy typ po rozszerzeniu, zamiast traktowac je jak zdjecie. */
+  function guessMime(file) {
+    if (file.type) return file.type;
+    var m = /\.([a-z0-9]+)$/i.exec(String(file.name || ''));
+    var ext = m ? m[1].toLowerCase() : '';
+    return MIME_BY_EXT[ext] || 'application/octet-stream';
+  }
+
   function enqueue(files) {
     if (!state.siteEnabled) { toast(CFG.siteDisabledText || 'Strona jest tymczasowo wyłączona.', true); return; }
     var maxPhotoMB = CFG.maxPhotoMB || 20;
@@ -490,7 +505,7 @@
     Array.prototype.forEach.call(files, function (file) {
       if (!file || !file.size) return;
       if (times.length + added >= rateLimitCount) { blocked++; return; }
-      var isVid = String(file.type || '').indexOf('video') === 0;
+      var isVid = guessMime(file).indexOf('video') === 0;
       var limitMB = isVid ? maxVideoMB : maxPhotoMB;
       if (file.size > limitMB * 1024 * 1024) {
         toast('Plik ' + file.name + ' jest za duży (limit ' + limitMB + ' MB).', true);
@@ -549,7 +564,7 @@
         var meta = {
           name: item.name,
           parents: [state.folderId],
-          mimeType: item.file.type || 'application/octet-stream',
+          mimeType: guessMime(item.file),
           appProperties: {
             deviceId: state.deviceId,
             guest: String(state.guest || 'Gosc').slice(0, 60)
@@ -574,7 +589,7 @@
         item.loaded = item.file.size;
         rememberSent(item.key);
         if (created && created.id) {
-          if (String(item.file.type || '').indexOf('image') === 0) {
+          if (guessMime(item.file).indexOf('image') === 0) {
             try { state.localThumbs[created.id] = URL.createObjectURL(item.file); } catch (e) { /* ignorujemy */ }
           }
           if (!created.appProperties) {
@@ -612,7 +627,7 @@
         headers: {
           'Authorization': 'Bearer ' + cfg.token,
           'Content-Type': 'application/json; charset=UTF-8',
-          'X-Upload-Content-Type': item.file.type || 'application/octet-stream',
+          'X-Upload-Content-Type': guessMime(item.file),
           'X-Upload-Content-Length': String(item.file.size)
         },
         body: JSON.stringify(meta)
@@ -794,7 +809,7 @@
 
       var thumb = document.createElement('div');
       thumb.className = 'up-thumb';
-      if (String(item.file.type || '').indexOf('image') === 0) {
+      if (guessMime(item.file).indexOf('image') === 0) {
         var img = document.createElement('img');
         img.className = 'up-thumb';
         try { img.src = URL.createObjectURL(item.file); } catch (e) { /* ignorujemy */ }

@@ -33,7 +33,7 @@ window.WESELE_CONFIG = {
   maxFilesPerBatch: 40,    // maks. plików wybranych na raz (jedno kliknięcie "Dodaj zdjęcia")
   rateLimitCount: 60,      // maks. plików na urządzenie w oknie czasowym poniżej
   rateLimitWindowMin: 15,  // długość okna czasowego (w minutach) dla limitu powyżej
-  parallelUploads: 10,     // ile plików naraz (2 to dobry kompromis na LTE)
+  parallelUploads: 3,      // ile plików naraz (2-3 to dobry kompromis na LTE)
   galleryRefreshSec: 30,  // co ile sekund dociągać nowe zdjęcia
   pageSize: 60,           // ile kafelków na stronę galerii
   slideshowIntervalSec: 6 // co ile sekund zmienia się zdjęcie w slideshow.html (telewizor/projektor)
