@@ -23,8 +23,9 @@ window.WESELE_CONFIG = {
      Ustaw na false, żeby go całkiem wyłączyć. */
   showLeaderboard: true,
 
-  /* Klucz panelu admina — musi być IDENTYCZNY jak ADMIN_KEY w Code.gs */
-  adminKey: 'twojstaryjekomary',
+  /* Klucz panelu admina CELOWO nie jest tu wpisany — ten plik jest publiczny
+     (repo GitHub Pages). Wejdź na admin.html?key=... z kluczem z Code.gs (ADMIN_KEY)
+     i zapisz ten adres prywatnie (np. zakładka), nigdy nie wklejaj go do gita. */
 
   /* Limity i zachowanie */
   maxPhotoMB: 20,          // limit dla zdjęć — odrzuca większe z czytelnym komunikatem

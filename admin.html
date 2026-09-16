@@ -93,8 +93,7 @@
   var CFG = window.WESELE_CONFIG || {};
   var API = CFG.apiUrl || '';
   var key = new URLSearchParams(location.search).get('key') ||
-            sessionStorage.getItem('wesele.adminKey') ||
-            CFG.adminKey || '';
+            sessionStorage.getItem('wesele.adminKey') || '';
   var timer = null;
   var reportedIds = {};
 
@@ -206,19 +205,14 @@
     });
   }
 
-  /* Wspólna funkcja usuwania — używana przez siatkę plików i przycisk przy zgłoszeniu. */
+  /* Wspólna funkcja usuwania — używana przez siatkę plików i przycisk przy zgłoszeniu.
+     Idzie przez backend (kluczem admina), nie bezposrednio do Dysku wspolnym tokenem
+     gosci — inaczej kasowanie nie byloby w ogole chronione kluczem. */
   function trashFile(id) {
-    return fetch(API + '?action=config&_=' + Date.now())
+    return fetch(API + '?action=adminTrash&key=' + encodeURIComponent(key) +
+      '&id=' + encodeURIComponent(id) + '&_=' + Date.now())
       .then(function (r) { return r.json(); })
-      .then(function (cfg) {
-        if (!cfg.ok) throw new Error(cfg.error);
-        return fetch('https://www.googleapis.com/drive/v3/files/' + id, {
-          method: 'PATCH',
-          headers: { Authorization: 'Bearer ' + cfg.token, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ trashed: true })
-        });
-      })
-      .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); });
+      .then(function (d) { if (!d.ok) throw new Error(d.error || 'blad'); });
   }
 
   /* Lista plikow z mozliwoscia usuniecia cudzego zdjecia/filmu przez admina. */
