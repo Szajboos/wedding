@@ -830,17 +830,22 @@
     stage.innerHTML = '';
 
     if (isVideo(f)) {
+      var spinner = document.createElement('div');
+      spinner.className = 'lb-spinner';
+      stage.appendChild(spinner);
+
       var frame = document.createElement('iframe');
       frame.src = 'https://drive.google.com/file/d/' + f.id + '/preview';
       frame.allow = 'autoplay; fullscreen';
       frame.setAttribute('allowfullscreen', '');
+      frame.onload = function () { spinner.hidden = true; };
       stage.appendChild(frame);
 
       var hint = document.createElement('button');
       hint.type = 'button';
       hint.className = 'lb-video-hint';
       hint.textContent = 'Film się nie odtwarza? Dysk może go jeszcze przetwarzać — kliknij, aby odświeżyć';
-      hint.onclick = function () { frame.src = frame.src; };
+      hint.onclick = function () { spinner.hidden = false; frame.src = frame.src; };
       stage.appendChild(hint);
     } else {
       var img = document.createElement('img');
