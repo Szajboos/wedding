@@ -444,7 +444,7 @@
   }
 
   function guestOf(f) {
-    return (f.appProperties && f.appProperties.guest) || 'Gosc';
+    return (f.appProperties && f.appProperties.guest) || 'Gość';
   }
 
   /* ---------------------------------------------------------------
@@ -1204,8 +1204,10 @@
       if (document.visibilityState === 'visible') refreshTop();
     });
 
-    // Start
+    // Start — jedna proba ponowienia, zanim pokazemy blad (pierwsze polaczenie
+    // na telefonie czasem pada raz i samo wraca).
     loadFirstPage()
+      .catch(function () { return wait(3000).then(loadFirstPage); })
       .then(function () {
         if (!state.guest) askName(false);
         log('open', 'start');

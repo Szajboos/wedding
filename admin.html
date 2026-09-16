@@ -80,7 +80,7 @@
   <p class="sub">Usuwanie tutaj działa dla każdego zdjęcia, nie tylko własnych gościa. Plik trafia do Koszu na Dysku (30 dni na odzyskanie).</p>
   <div class="grid files" id="files"></div>
 
-  <h2>Najaktywniejsi goscie</h2>
+  <h2>Najaktywniejsi goście</h2>
   <div class="bars" id="guests"></div>
 
   <h2>Ostatnie zdarzenia</h2>
@@ -155,11 +155,11 @@
       ? fmtBytes(Number(d.quota.limit) - Number(d.quota.usage))
       : 'n/d';
     $('#tiles').innerHTML =
-      tile(d.files, 'plikow') +
+      tile(d.files, 'plików') +
       tile(d.last10min, 'ostatnie 10 min') +
-      tile(d.guests, 'gosci') +
+      tile(d.guests, 'gości') +
       tile(fmtBytes(d.bytes), 'rozmiar albumu') +
-      tile(d.videos, 'filmow') +
+      tile(d.videos, 'filmów') +
       tile('<span class="' + (d.counters.err ? 'err' : 'okk') + '">' + d.counters.err + '</span>', 'błędów') +
       tile('<span class="' + (d.counters.report ? 'err' : 'okk') + '">' + (d.counters.report || 0) + '</span>', 'zgłoszeń') +
       tile(free, 'wolne na Dysku');
@@ -241,7 +241,7 @@
     });
     $('#files').innerHTML = list.map(function (f) {
       var isVid = String(f.mimeType || '').indexOf('video') === 0;
-      var guest = (f.appProperties && f.appProperties.guest) || 'gosc';
+      var guest = (f.appProperties && f.appProperties.guest) || 'gość';
       var reported = !!reportedIds[f.id];
       return '<div class="fcard' + (reported ? ' reported' : '') + '" data-id="' + f.id + '">' +
         (reported ? '<span class="rflag">⚠ zgłoszono</span>' : '') +
@@ -251,7 +251,7 @@
         '<span class="g">' + esc(guest) + '</span>' +
         '<button class="del" type="button" title="Usuń ten plik">&times;</button>' +
         '</div>';
-    }).join('') || '<p class="sub">Brak plikow.</p>';
+    }).join('') || '<p class="sub">Brak plików.</p>';
 
     Array.prototype.forEach.call($('#files').querySelectorAll('.del'), function (btn) {
       btn.addEventListener('click', function () {

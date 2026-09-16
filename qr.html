@@ -26,16 +26,16 @@
 <div class="wrap">
   <div class="noprint">
     <h1 style="font-size:1.2rem">Kod QR na stoliki</h1>
-    <p>Wklej adres strony (GitHub Pages) i wydrukuj. Kod ma min. 4 cm boku — sprawdz skanowanie z wydruku, nie z ekranu.</p>
-    <input id="url" type="url" placeholder="https://twojanazwa.github.io/wesele/">
+    <p>Wklej adres strony i wydrukuj. Kod ma min. 4 cm boku — sprawdź skanowanie z wydruku, nie z ekranu.</p>
+    <input id="url" type="url" placeholder="https://wesele-kamilaifilip.pl/">
     <input id="title" type="text" placeholder="Ania &amp; Tomek">
-    <input id="sub" type="text" placeholder="Zeskanuj i wrzuc swoje zdjecia">
+    <input id="sub" type="text" placeholder="Zeskanuj i wrzuć swoje zdjęcia">
     <p><button id="make" type="button">Generuj</button> <button id="print" type="button">Drukuj</button></p>
   </div>
 
   <div class="card">
     <h2 id="c-title">Ania &amp; Tomek</h2>
-    <p id="c-sub">Zeskanuj i wrzuc swoje zdjecia</p>
+    <p id="c-sub">Zeskanuj i wrzuć swoje zdjęcia</p>
     <div id="qr"></div>
     <div class="url" id="c-url"></div>
   </div>
@@ -47,7 +47,7 @@ function make() {
   var url = document.getElementById('url').value.trim();
   if (!url) { alert('Podaj adres strony'); return; }
   document.getElementById('c-title').textContent = document.getElementById('title').value || 'Nasze wesele';
-  document.getElementById('c-sub').textContent = document.getElementById('sub').value || 'Zeskanuj i wrzuc swoje zdjecia';
+  document.getElementById('c-sub').textContent = document.getElementById('sub').value || 'Zeskanuj i wrzuć swoje zdjęcia';
   document.getElementById('c-url').textContent = url;
   var box = document.getElementById('qr');
   box.innerHTML = '';
