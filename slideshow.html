@@ -9,6 +9,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Alex+Brush&family=Cormorant+Garamond:wght@500;600&display=swap">
 <style>
+  [hidden] { display: none !important; }
   html, body { margin: 0; height: 100%; background: #0B0B0A; overflow: hidden;
                font-family: 'Cormorant Garamond', Georgia, serif; }
   .stage { position: fixed; inset: 0; }
@@ -23,10 +24,12 @@
   .hud .who { font-size: clamp(.9rem, 1.4vw, 1.1rem); letter-spacing: .04em; color: #D9D2C4; }
   .empty { position: fixed; inset: 0; display: grid; place-items: center; z-index: 1;
            color: #D9D2C4; font-size: 1.3rem; text-align: center; padding: 20px; }
-  .fs-btn { position: fixed; top: 14px; right: 14px; z-index: 3; opacity: .35;
+  .fs-btn { position: fixed; top: 14px; z-index: 3; opacity: .35;
             background: rgba(255,255,255,.12); color: #F4EFE6; border: 0; border-radius: 8px;
-            font: 14px system-ui, sans-serif; padding: 8px 12px; cursor: pointer; }
+            font: 14px system-ui, sans-serif; padding: 8px 12px; cursor: pointer; text-decoration: none; }
   .fs-btn:hover { opacity: .8; }
+  #fs { right: 14px; }
+  #exit { right: 108px; }
 </style>
 </head>
 <body>
@@ -37,6 +40,7 @@
   <span class="who" id="who"></span>
 </div>
 <div class="empty" id="empty">Ładowanie zdjęć…</div>
+<a class="fs-btn" id="exit" href="index.html">✕ Zamknij</a>
 <button class="fs-btn" id="fs" type="button">Pełny ekran</button>
 
 <script src="config.js"></script>
@@ -98,13 +102,17 @@
   }
 
   document.addEventListener('click', function (e) {
-    if (e.target.id === 'fs') return;
+    if (e.target.id === 'fs' || e.target.id === 'exit') return;
     paused = !paused;
   });
 
   $('#fs').addEventListener('click', function () {
     if (document.fullscreenElement) document.exitFullscreen();
     else document.documentElement.requestFullscreen().catch(function () {});
+  });
+
+  $('#exit').addEventListener('click', function () {
+    if (document.fullscreenElement) document.exitFullscreen().catch(function () {});
   });
 
   function boot() {

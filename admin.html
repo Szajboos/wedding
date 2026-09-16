@@ -50,13 +50,13 @@
 <body>
 
 <h1>Panel monitoringu</h1>
-<p class="sub" id="status"><span class="dot bad"></span>laczenie...</p>
+<p class="sub" id="status"><span class="dot bad"></span>łączenie...</p>
 
 <div id="need-key" hidden>
   <p>Podaj klucz administratora (ADMIN_KEY z Code.gs):</p>
   <div class="row">
     <input id="key" type="password" placeholder="klucz" autocomplete="off">
-    <button class="primary" id="key-ok" type="button">Wejdz</button>
+    <button class="primary" id="key-ok" type="button">Wejdź</button>
   </div>
 </div>
 
@@ -70,7 +70,7 @@
 
   <div class="row">
     <button class="primary" id="test" type="button">Test uploadu</button>
-    <button id="refresh" type="button">Odswiez</button>
+    <button id="refresh" type="button">Odśwież</button>
     <a class="lnk" id="folder" target="_blank" rel="noopener">Folder na Dysku</a>
     <a class="lnk" href="index.html">Galeria</a>
     <a class="lnk" href="slideshow.html" target="_blank" rel="noopener">Pokaz na TV</a>
@@ -123,11 +123,11 @@
         sessionStorage.setItem('wesele.adminKey', key);
         $('#need-key').hidden = true;
         $('#panel').hidden = false;
-        setStatus(true, 'backend dziala · wersja ' + d.version + ' · ' + new Date(d.ts).toLocaleTimeString('pl-PL'));
+        setStatus(true, 'backend działa · wersja ' + d.version + ' · ' + new Date(d.ts).toLocaleTimeString('pl-PL'));
         render(d);
         loadFiles();
       })
-      .catch(function (e) { setStatus(false, 'brak polaczenia z backendem (' + e.message + ')'); });
+      .catch(function (e) { setStatus(false, 'brak połączenia z backendem (' + e.message + ')'); });
   }
 
   function tile(n, l) { return '<div class="card"><div class="n">' + n + '</div><div class="l">' + l + '</div></div>'; }
@@ -161,8 +161,8 @@
       tile(d.guests, 'gosci') +
       tile(fmtBytes(d.bytes), 'rozmiar albumu') +
       tile(d.videos, 'filmow') +
-      tile('<span class="' + (d.counters.err ? 'err' : 'okk') + '">' + d.counters.err + '</span>', 'bledow') +
-      tile('<span class="' + (d.counters.report ? 'err' : 'okk') + '">' + (d.counters.report || 0) + '</span>', 'zgloszen') +
+      tile('<span class="' + (d.counters.err ? 'err' : 'okk') + '">' + d.counters.err + '</span>', 'błędów') +
+      tile('<span class="' + (d.counters.report ? 'err' : 'okk') + '">' + (d.counters.report || 0) + '</span>', 'zgłoszeń') +
       tile(free, 'wolne na Dysku');
 
     $('#folder').href = d.folderUrl;
@@ -182,7 +182,7 @@
              '<td>' + esc(e.guest ? e.guest + ' · ' : '') + esc(e.msg) +
              (isReport && fid ? ' <button class="del-report" data-id="' + esc(fid) + '" type="button">Usuń plik</button>' : '') +
              '</td></tr>';
-    }).join('') || '<tr><td>brak zdarzen</td></tr>';
+    }).join('') || '<tr><td>brak zdarzeń</td></tr>';
 
     Array.prototype.forEach.call($('#events').querySelectorAll('.del-report'), function (btn) {
       btn.addEventListener('click', function () {
@@ -206,7 +206,7 @@
     });
   }
 
-  /* Wspolna funkcja usuwania — uzywana przez siatke plikow i przycisk przy zgloszeniu. */
+  /* Wspólna funkcja usuwania — używana przez siatkę plików i przycisk przy zgłoszeniu. */
   function trashFile(id) {
     return fetch(API + '?action=config&_=' + Date.now())
       .then(function (r) { return r.json(); })
@@ -237,7 +237,7 @@
           renderFiles(d.files || []);
         });
       })
-      .catch(function (e) { $('#files').innerHTML = '<p class="err">Nie udalo sie wczytac plikow: ' + esc(e.message) + '</p>'; });
+      .catch(function (e) { $('#files').innerHTML = '<p class="err">Nie udało się wczytać plików: ' + esc(e.message) + '</p>'; });
   }
 
   function renderFiles(list) {
@@ -255,7 +255,7 @@
           ? '<div class="vph">FILM</div>'
           : '<img src="https://drive.google.com/thumbnail?id=' + f.id + '&sz=w200" loading="lazy" alt="">') +
         '<span class="g">' + esc(guest) + '</span>' +
-        '<button class="del" type="button" title="Usun ten plik">&times;</button>' +
+        '<button class="del" type="button" title="Usuń ten plik">&times;</button>' +
         '</div>';
     }).join('') || '<p class="sub">Brak plikow.</p>';
 
@@ -263,14 +263,14 @@
       btn.addEventListener('click', function () {
         var card = btn.closest('.fcard');
         var id = card.dataset.id;
-        if (!confirm('Usunac ten plik z galerii? Trafi do Koszu na Dysku (30 dni na odzyskanie).')) return;
+        if (!confirm('Usunąć ten plik z galerii? Trafi do Koszu na Dysku (30 dni na odzyskanie).')) return;
         trashFile(id).then(function () { card.remove(); })
-          .catch(function () { alert('Nie udalo sie usunac pliku.'); });
+          .catch(function () { alert('Nie udało się usunąć pliku.'); });
       });
     });
   }
 
-  /* Test end-to-end: maly plik przechodzi cala droge na Dysk i z powrotem. */
+  /* Test end-to-end: mały plik przechodzi całą drogę na Dysk i z powrotem. */
   function testUpload() {
     setStatus(true, 'test w toku...');
     fetch(API + '?action=config&_=' + Date.now())
@@ -302,14 +302,14 @@
           if (r.status !== 200 && r.status !== 201) throw new Error('PUT HTTP ' + r.status);
           return r.json();
         }).then(function (f) {
-          // Sprzatamy po sobie od razu.
+          // Sprzątamy po sobie od razu.
           return fetch('https://www.googleapis.com/drive/v3/files/' + f.id, {
             method: 'DELETE',
             headers: { 'Authorization': 'Bearer ' + cfg.token }
           });
         });
       })
-      .then(function () { setStatus(true, 'TEST OK — cala sciezka uploadu dziala.'); })
+      .then(function () { setStatus(true, 'TEST OK — cała ścieżka uploadu działa.'); })
       .catch(function (e) { setStatus(false, 'TEST NIEUDANY: ' + e.message); });
   }
 
