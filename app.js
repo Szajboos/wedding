@@ -340,6 +340,7 @@
               for (var j = 0; j < newList.length; j++) {
                 if (newList[j].id === lbItemId) { state.lbIndex = j; break; }
               }
+              updateLbMeta(newList[state.lbIndex], newList);
             }
           }
         }
@@ -974,13 +975,19 @@
       stage.appendChild(img);
     }
 
+    updateLbMeta(f, list);
+
+    $('#lb-dl').href = 'https://drive.google.com/uc?export=download&id=' + f.id;
+    $('#lb-del').hidden = !isMine(f);
+  }
+
+  /** Sam tekst "n/N" + gosc + data pod lightboxem — bez przeladowania obrazka/wideo,
+      zeby odswiezenie mogloby zaktualizowac tylko pozycje po przesunieciu indeksu. */
+  function updateLbMeta(f, list) {
     var when = f.createdTime ? new Date(f.createdTime) : null;
     $('#lb-meta').textContent = guestOf(f) + (when ? ' · ' + when.toLocaleString('pl-PL', {
       day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'
     }) : '') + ' · ' + (state.lbIndex + 1) + '/' + list.length;
-
-    $('#lb-dl').href = 'https://drive.google.com/uc?export=download&id=' + f.id;
-    $('#lb-del').hidden = !isMine(f);
   }
 
   function lbMove(delta) {
