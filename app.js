@@ -15,6 +15,7 @@
   var CHUNK = 8 * 1024 * 1024;        // 8 MB — wielokrotnosc 256 KB (wymog Google)
   var PROXY_CHUNK = 4 * 1024 * 1024;  // mniejsze kawalki dla sciezki zapasowej
   var THUMB = 'https://drive.google.com/thumbnail?id=';
+  var REFRESH_GRACE_MS = 90 * 1000;   // patrz komentarz w refreshTop()
 
   var $ = function (sel) { return document.querySelector(sel); };
 
@@ -270,12 +271,15 @@
       .then(function () { state.loading = false; });
   }
 
+  var refreshPromise = null;
+
   /** Dociaga i uzgadnia pierwsza strone listy — tanie odswiezanie co kilkanascie sekund.
       Aktualizuje juz znane pliki (np. film, ktory dopiero teraz ma metadane), dodaje nowe
       i usuwa lokalnie te, ktore zniknely z okna czasowego świeżej strony (skasowane). */
   function refreshTop() {
     if (!state.folderId) return Promise.resolve();
-    return listFiles(null)
+    if (refreshPromise) return refreshPromise;
+    refreshPromise = listFiles(null)
       .then(function (data) {
         var fresh = data.files || [];
         var freshIds = {};
@@ -305,9 +309,16 @@
 
         if (fresh.length) {
           var windowTime = fresh[fresh.length - 1].createdTime;
+          var now = Date.now();
           var kept = [];
+          // Migawka listy jest robiona w chwili wyslania zapytania: w miedzyczasie mogl dojsc
+          // wlasny upload (addItem lokalnie, przed odpowiedzia) albo Dysk moze nie byc jeszcze
+          // spojny odczyt-po-zapisie. Nie kasujemy wiec plikow mlodszych niz REFRESH_GRACE_MS,
+          // nawet jesli ta migawka ich nie zawiera — wroca/znikna poprawnie przy kolejnym odswiezeniu.
           state.items.forEach(function (item) {
-            if (item.createdTime >= windowTime && !freshIds[item.id]) {
+            var createdMs = Date.parse(item.createdTime);
+            var freshEnough = isNaN(createdMs) || (now - createdMs) < REFRESH_GRACE_MS;
+            if (item.createdTime >= windowTime && !freshIds[item.id] && !freshEnough) {
               delete state.ids[item.id];
               changed = true;
             } else {
@@ -333,7 +344,9 @@
           }
         }
       })
-      .catch(function (e) { log('error', 'refresh: ' + e.message); });
+      .catch(function (e) { log('error', 'refresh: ' + e.message); })
+      .then(function () { refreshPromise = null; });
+    return refreshPromise;
   }
 
   function addItem(f, toFront) {
