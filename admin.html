@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>Panel — Wesele</title>
+<style>
+  :root { --bg:#141513; --card:#1E201D; --ink:#EDEAE3; --soft:#9AA093; --ok:#7FB069; --bad:#E0796F; --gold:#D8BC83; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+         padding: calc(env(safe-area-inset-top,0px) + 16px) 14px calc(env(safe-area-inset-bottom,0px) + 40px); }
+  h1 { font-size:1.1rem; margin:0 0 2px; }
+  .sub { color:var(--soft); font-size:.82rem; margin:0 0 16px; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:10px; }
+  .card { background:var(--card); border-radius:12px; padding:14px; }
+  .card .n { font-size:1.6rem; font-weight:600; line-height:1.1; }
+  .card .l { color:var(--soft); font-size:.78rem; text-transform:uppercase; letter-spacing:.06em; }
+  .row { display:flex; gap:8px; flex-wrap:wrap; margin:16px 0; align-items:center; }
+  button, .lnk { font:inherit; padding:11px 16px; border:0; border-radius:999px; background:#37402F; color:var(--ink);
+                 cursor:pointer; text-decoration:none; display:inline-block; }
+  button.primary { background:var(--gold); color:#221F1A; font-weight:600; }
+  .dot { width:10px; height:10px; border-radius:50%; display:inline-block; margin-right:6px; }
+  .dot.ok { background:var(--ok); } .dot.bad { background:var(--bad); }
+  table { width:100%; border-collapse:collapse; font-size:.83rem; margin-top:8px; }
+  td { padding:7px 6px; border-bottom:1px solid #2C2F29; vertical-align:top; }
+  td.t { color:var(--soft); white-space:nowrap; width:1%; }
+  .err { color:var(--bad); }
+  .okk { color:var(--ok); }
+  input { font:inherit; padding:11px 14px; border-radius:10px; border:1px solid #333; background:#1A1C19; color:var(--ink); width:min(320px,100%); }
+  h2 { font-size:.92rem; text-transform:uppercase; letter-spacing:.08em; color:var(--soft); margin:22px 0 4px; }
+  .bars div { display:flex; justify-content:space-between; padding:5px 0; border-bottom:1px solid #2C2F29; font-size:.85rem; }
+</style>
+</head>
+<body>
+
+<h1>Panel monitoringu</h1>
+<p class="sub" id="status"><span class="dot bad"></span>laczenie...</p>
+
+<div id="need-key" hidden>
+  <p>Podaj klucz administratora (ADMIN_KEY z Code.gs):</p>
+  <div class="row">
+    <input id="key" type="password" placeholder="klucz" autocomplete="off">
+    <button class="primary" id="key-ok" type="button">Wejdz</button>
+  </div>
+</div>
+
+<div id="panel" hidden>
+  <div class="grid" id="tiles"></div>
+
+  <div class="row">
+    <button class="primary" id="test" type="button">Test uploadu</button>
+    <button id="refresh" type="button">Odswiez</button>
+    <a class="lnk" id="folder" target="_blank" rel="noopener">Folder na Dysku</a>
+    <a class="lnk" href="index.html">Galeria</a>
+  </div>
+
+  <h2>Najaktywniejsi goscie</h2>
+  <div class="bars" id="guests"></div>
+
+  <h2>Ostatnie zdarzenia</h2>
+  <table id="events"></table>
+</div>
+
+<script src="config.js"></script>
+<script>
+(function () {
+  var CFG = window.WESELE_CONFIG || {};
+  var API = CFG.apiUrl || '';
+  var key = new URLSearchParams(location.search).get('key') ||
+            sessionStorage.getItem('wesele.adminKey') ||
+            CFG.adminKey || '';
+  var timer = null;
+
+  function $(s) { return document.querySelector(s); }
+
+  function setStatus(ok, text) {
+    $('#status').innerHTML = '<span class="dot ' + (ok ? 'ok' : 'bad') + '"></span>' + text;
+  }
+
+  function fmtBytes(b) {
+    if (!b) return '0 MB';
+    var gb = b / 1073741824;
+    return gb >= 1 ? gb.toFixed(2) + ' GB' : (b / 1048576).toFixed(0) + ' MB';
+  }
+
+  function load() {
+    fetch(API + '?action=stats&key=' + encodeURIComponent(key) + '&_=' + Date.now())
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (!d.ok) {
+          setStatus(false, d.error || 'blad');
+          $('#need-key').hidden = false;
+          $('#panel').hidden = true;
+          return;
+        }
+        sessionStorage.setItem('wesele.adminKey', key);
+        $('#need-key').hidden = true;
+        $('#panel').hidden = false;
+        setStatus(true, 'backend dziala · wersja ' + d.version + ' · ' + new Date(d.ts).toLocaleTimeString('pl-PL'));
+        render(d);
+      })
+      .catch(function (e) { setStatus(false, 'brak polaczenia z backendem (' + e.message + ')'); });
+  }
+
+  function tile(n, l) { return '<div class="card"><div class="n">' + n + '</div><div class="l">' + l + '</div></div>'; }
+
+  function render(d) {
+    var free = d.quota && d.quota.limit
+      ? fmtBytes(Number(d.quota.limit) - Number(d.quota.usage))
+      : 'n/d';
+    $('#tiles').innerHTML =
+      tile(d.files, 'plikow') +
+      tile(d.last10min, 'ostatnie 10 min') +
+      tile(d.guests, 'gosci') +
+      tile(fmtBytes(d.bytes), 'rozmiar albumu') +
+      tile(d.videos, 'filmow') +
+      tile('<span class="' + (d.counters.err ? 'err' : 'okk') + '">' + d.counters.err + '</span>', 'bledow') +
+      tile(free, 'wolne na Dysku');
+
+    $('#folder').href = d.folderUrl;
+
+    $('#guests').innerHTML = (d.topGuests || []).map(function (g) {
+      return '<div><span>' + esc(g.guest) + '</span><span>' + g.count + '</span></div>';
+    }).join('') || '<div><span>brak danych</span><span></span></div>';
+
+    $('#events').innerHTML = (d.events || []).map(function (e) {
+      var cls = /err|error/.test(e.type) ? 'err' : /ok/.test(e.type) ? 'okk' : '';
+      return '<tr><td class="t">' + new Date(e.ts).toLocaleTimeString('pl-PL') + '</td>' +
+             '<td class="t ' + cls + '">' + esc(e.type) + '</td>' +
+             '<td>' + esc(e.guest ? e.guest + ' · ' : '') + esc(e.msg) + '</td></tr>';
+    }).join('') || '<tr><td>brak zdarzen</td></tr>';
+  }
+
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
+      return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c];
+    });
+  }
+
+  /* Test end-to-end: maly plik przechodzi cala droge na Dysk i z powrotem. */
+  function testUpload() {
+    setStatus(true, 'test w toku...');
+    fetch(API + '?action=config&_=' + Date.now())
+      .then(function (r) { return r.json(); })
+      .then(function (cfg) {
+        if (!cfg.ok) throw new Error(cfg.error);
+        var body = new Blob([new Uint8Array(2048)]);
+        return fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&fields=id', {
+          method: 'POST',
+          headers: {
+            'Authorization': 'Bearer ' + cfg.token,
+            'Content-Type': 'application/json; charset=UTF-8',
+            'X-Upload-Content-Length': '2048'
+          },
+          body: JSON.stringify({
+            name: 'TEST_' + new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-') + '.bin',
+            parents: [cfg.folderId],
+            appProperties: { deviceId: 'admin-test', guest: 'TEST' }
+          })
+        }).then(function (r) {
+          var loc = r.headers.get('location');
+          if (!loc) throw new Error('brak naglowka Location (tryb zapasowy aktywny na telefonach)');
+          return fetch(loc, {
+            method: 'PUT',
+            headers: { 'Content-Range': 'bytes 0-2047/2048' },
+            body: body
+          });
+        }).then(function (r) {
+          if (r.status !== 200 && r.status !== 201) throw new Error('PUT HTTP ' + r.status);
+          return r.json();
+        }).then(function (f) {
+          // Sprzatamy po sobie od razu.
+          return fetch('https://www.googleapis.com/drive/v3/files/' + f.id, {
+            method: 'DELETE',
+            headers: { 'Authorization': 'Bearer ' + cfg.token }
+          });
+        });
+      })
+      .then(function () { setStatus(true, 'TEST OK — cala sciezka uploadu dziala.'); })
+      .catch(function (e) { setStatus(false, 'TEST NIEUDANY: ' + e.message); });
+  }
+
+  $('#key-ok').addEventListener('click', function () { key = $('#key').value.trim(); load(); });
+  $('#key').addEventListener('keydown', function (e) { if (e.key === 'Enter') { key = e.target.value.trim(); load(); } });
+  $('#refresh').addEventListener('click', load);
+  $('#test').addEventListener('click', testUpload);
+
+  if (!key) { $('#need-key').hidden = false; setStatus(false, 'podaj klucz'); }
+  else load();
+  timer = setInterval(function () { if (!$('#panel').hidden) load(); }, 30000);
+})();
+</script>
+</body>
+</html>

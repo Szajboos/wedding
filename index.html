@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#FAF8F4" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#1C1A17" media="(prefers-color-scheme: dark)">
+<meta name="description" content="Wspólna galeria zdjęć z wesela — wrzuć swoje zdjęcia i zobacz zdjęcia innych gości.">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Wesele">
+<title>Zdjęcia z wesela</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Inter:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="styles.css?v=1">
+</head>
+<body>
+
+<div id="offline" class="banner" hidden>Brak internetu — zdjęcia wyślą się automatycznie po powrocie sieci.</div>
+
+<header class="top">
+  <div class="brand">
+    <h1 id="couple">&nbsp;</h1>
+    <p id="wdate" class="muted"></p>
+  </div>
+  <button id="btn-name" class="icon-btn" aria-label="Zmień swoje imię" title="Zmień swoje imię">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm0 2c-4 0-7 2-7 4.5V21h14v-2.5C19 16 16 14 12 14Z"/></svg>
+    <span id="who" class="who"></span>
+  </button>
+</header>
+
+<nav class="filters" aria-label="Filtry galerii">
+  <button class="chip is-active" data-filter="all" type="button">Wszystkie</button>
+  <button class="chip" data-filter="mine" type="button">Moje</button>
+  <span id="count" class="count"></span>
+  <button id="btn-refresh" class="icon-btn small" type="button" aria-label="Odśwież galerię" title="Odśwież">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5V2L8 6l4 4V7a5 5 0 1 1-5 5H5a7 7 0 1 0 7-7Z"/></svg>
+  </button>
+</nav>
+
+<main id="gallery" class="grid" aria-live="polite"></main>
+
+<div id="empty" class="empty" hidden>
+  <div class="empty-art" aria-hidden="true">
+    <svg viewBox="0 0 24 24"><path d="M20 5h-3.2l-1.2-2H8.4L7.2 5H4a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2Zm-8 12a4.5 4.5 0 1 1 0-9 4.5 4.5 0 0 1 0 9Z"/></svg>
+  </div>
+  <h2>Jeszcze nic tu nie ma</h2>
+  <p id="welcome" class="muted"></p>
+</div>
+
+<div id="sentinel" class="sentinel"></div>
+
+<footer class="foot">
+  <p class="muted tiny">Zdjęcia widzą wszyscy goście wesela. Swoje możesz usunąć w dowolnej chwili.</p>
+  <p id="ver" class="muted tiny"></p>
+</footer>
+
+<div class="fab-bar">
+  <button id="btn-camera" class="btn ghost" type="button">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 5h-3.2l-1.2-2H8.4L7.2 5H4a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2Zm-8 12a4.5 4.5 0 1 1 0-9 4.5 4.5 0 0 1 0 9Z"/></svg>
+    Aparat
+  </button>
+  <button id="btn-pick" class="btn primary" type="button">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 19V8.8l-3.6 3.6L6 11l6-6 6 6-1.4 1.4L13 8.8V19h-2Z"/></svg>
+    Dodaj zdjęcia
+  </button>
+</div>
+
+<input id="file-pick" type="file" accept="image/*,video/*" multiple hidden>
+<input id="file-cam" type="file" accept="image/*,video/*" capture="environment" hidden>
+
+<!-- Panel wysylania -->
+<section id="uploads" class="sheet" hidden aria-live="polite">
+  <div class="sheet-head">
+    <strong id="up-title">Wysyłanie</strong>
+    <div class="sheet-actions">
+      <button id="up-retry" class="btn tiny ghost" type="button" hidden>Ponów błędne</button>
+      <button id="up-close" class="icon-btn small" type="button" aria-label="Zwiń panel">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 6.4 17.6 5 12 10.6 6.4 5 5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12 19 6.4Z"/></svg>
+      </button>
+    </div>
+  </div>
+  <div class="bar"><span id="up-bar"></span></div>
+  <ul id="up-list" class="up-list"></ul>
+</section>
+
+<!-- Powitanie / imie -->
+<div id="name-modal" class="modal" hidden>
+  <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="nm-title">
+    <h2 id="nm-title">Witamy!</h2>
+    <p class="muted" id="nm-text">Jak masz na imię? Podpiszemy tak Twoje zdjęcia.</p>
+    <input id="nm-input" type="text" maxlength="32" placeholder="np. Wujek Tomek" autocomplete="name" enterkeyhint="done">
+    <p id="nm-err" class="err" hidden>Wpisz chociaż 2 litery.</p>
+    <button id="nm-save" class="btn primary wide" type="button">Zaczynamy</button>
+  </div>
+</div>
+
+<!-- Lightbox -->
+<div id="lb" class="lightbox" hidden>
+  <button id="lb-close" class="lb-btn lb-close" aria-label="Zamknij">
+    <svg viewBox="0 0 24 24"><path d="M19 6.4 17.6 5 12 10.6 6.4 5 5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12 19 6.4Z"/></svg>
+  </button>
+  <button id="lb-prev" class="lb-btn lb-prev" aria-label="Poprzednie">
+    <svg viewBox="0 0 24 24"><path d="M15.4 7.4 14 6l-6 6 6 6 1.4-1.4L10.8 12l4.6-4.6Z"/></svg>
+  </button>
+  <button id="lb-next" class="lb-btn lb-next" aria-label="Następne">
+    <svg viewBox="0 0 24 24"><path d="m8.6 7.4 1.4-1.4 6 6-6 6-1.4-1.4 4.6-4.6-4.6-4.6Z"/></svg>
+  </button>
+  <div id="lb-stage" class="lb-stage"></div>
+  <div class="lb-bar">
+    <span id="lb-meta" class="lb-meta"></span>
+    <span class="lb-tools">
+      <a id="lb-dl" class="lb-btn inline" target="_blank" rel="noopener" aria-label="Pobierz">
+        <svg viewBox="0 0 24 24"><path d="M12 16 6 10l1.4-1.4L11 12.2V4h2v8.2l3.6-3.6L18 10l-6 6Zm-7 4v-2h14v2H5Z"/></svg>
+      </a>
+      <button id="lb-del" class="lb-btn inline danger" hidden aria-label="Usuń zdjęcie">
+        <svg viewBox="0 0 24 24"><path d="M7 21a2 2 0 0 1-2-2V6h14v13a2 2 0 0 1-2 2H7ZM19 4h-4l-1-1h-4L9 4H5v2h14V4Z"/></svg>
+      </button>
+    </span>
+  </div>
+</div>
+
+<div id="toasts" class="toasts" aria-live="assertive"></div>
+
+<script src="config.js?v=1"></script>
+<script src="app.js?v=1"></script>
+</body>
+</html>
