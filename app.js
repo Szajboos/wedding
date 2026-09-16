@@ -270,16 +270,68 @@
       .then(function () { state.loading = false; });
   }
 
-  /** Dociaga tylko nowosci z gory listy — tanie odswiezanie co kilkanascie sekund. */
+  /** Dociaga i uzgadnia pierwsza strone listy — tanie odswiezanie co kilkanascie sekund.
+      Aktualizuje juz znane pliki (np. film, ktory dopiero teraz ma metadane), dodaje nowe
+      i usuwa lokalnie te, ktore zniknely z okna czasowego świeżej strony (skasowane). */
   function refreshTop() {
     if (!state.folderId) return Promise.resolve();
     return listFiles(null)
       .then(function (data) {
-        var added = 0;
-        (data.files || []).slice().reverse().forEach(function (f) {
-          if (!state.ids[f.id]) { addItem(f, true); added++; }
+        var fresh = data.files || [];
+        var freshIds = {};
+        fresh.forEach(function (f) { freshIds[f.id] = true; });
+
+        var lbItemId = null;
+        if (state.lbIndex >= 0) {
+          var curList = visibleItems();
+          lbItemId = curList[state.lbIndex] && curList[state.lbIndex].id;
+        }
+
+        var added = 0, changed = false;
+        fresh.slice().reverse().forEach(function (f) {
+          if (state.ids[f.id]) {
+            for (var i = 0; i < state.items.length; i++) {
+              if (state.items[i].id === f.id) {
+                if (isReady(f) !== isReady(state.items[i])) changed = true;
+                state.items[i] = f;
+                break;
+              }
+            }
+          } else {
+            addItem(f, true);
+            added++;
+          }
         });
-        if (added) render();
+
+        if (fresh.length) {
+          var windowTime = fresh[fresh.length - 1].createdTime;
+          var kept = [];
+          state.items.forEach(function (item) {
+            if (item.createdTime >= windowTime && !freshIds[item.id]) {
+              delete state.ids[item.id];
+              changed = true;
+            } else {
+              kept.push(item);
+            }
+          });
+          state.items = kept;
+        }
+
+        if (added || changed) {
+          render();
+          if (lbItemId) {
+            if (!state.ids[lbItemId]) {
+              var after = visibleItems();
+              if (!after.length) closeLightbox();
+              else { state.lbIndex = Math.min(state.lbIndex, after.length - 1); showLightbox(); }
+            } else {
+              var newList = visibleItems();
+              for (var j = 0; j < newList.length; j++) {
+                if (newList[j].id === lbItemId) { state.lbIndex = j; break; }
+              }
+            }
+          }
+        }
       })
       .catch(function (e) { log('error', 'refresh: ' + e.message); });
   }
