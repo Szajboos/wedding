@@ -205,7 +205,7 @@
      3. Galeria
      --------------------------------------------------------------- */
 
-  var FIELDS = 'nextPageToken,files(id,name,mimeType,createdTime,size,appProperties)';
+  var FIELDS = 'nextPageToken,files(id,name,mimeType,createdTime,size,appProperties,videoMediaMetadata)';
 
   function listFiles(pageToken) {
     var q = "'" + state.folderId + "' in parents and trashed=false";
@@ -228,9 +228,15 @@
   function isVideo(f) {
     return String(f.mimeType || '').indexOf('video') === 0;
   }
+  /** Dysk potrzebuje chwili, zanim film da sie odtworzyc — do tego czasu
+      pokazujemy go tylko wlascicielowi, zeby nie mylic innych gosci. */
+  function isReady(f) {
+    return !isVideo(f) || !!(f.videoMediaMetadata && f.videoMediaMetadata.durationMillis);
+  }
 
   function visibleItems() {
-    return state.filter === 'mine' ? state.items.filter(isMine) : state.items;
+    var list = state.filter === 'mine' ? state.items.filter(isMine) : state.items;
+    return list.filter(function (f) { return isMine(f) || isReady(f); });
   }
 
   function loadFirstPage() {
@@ -324,9 +330,10 @@
     grid.innerHTML = '';
     grid.appendChild(frag);
 
+    var shown = state.items.filter(function (f) { return isMine(f) || isReady(f); });
     var guests = {};
-    state.items.forEach(function (f) { guests[guestOf(f)] = 1; });
-    var n = state.items.length, g = Object.keys(guests).length;
+    shown.forEach(function (f) { guests[guestOf(f)] = 1; });
+    var n = shown.length, g = Object.keys(guests).length;
     $('#count').textContent = n
       ? n + ' ' + plural(n, 'zdjęcie', 'zdjęcia', 'zdjęć') +
         ' od ' + g + ' ' + plural(g, 'gościa', 'gości', 'gości')
