@@ -251,7 +251,7 @@
       .then(function (data) {
         state.items = [];
         state.ids = {};
-        (data.files || []).forEach(addItem);
+        (data.files || []).forEach(function (f) { addItem(f); });
         state.nextPageToken = data.nextPageToken || null;
         render();
       });
@@ -262,7 +262,7 @@
     state.loading = true;
     return listFiles(state.nextPageToken)
       .then(function (data) {
-        (data.files || []).forEach(addItem);
+        (data.files || []).forEach(function (f) { addItem(f); });
         state.nextPageToken = data.nextPageToken || null;
         render();
       })
