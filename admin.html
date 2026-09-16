@@ -30,6 +30,14 @@
   input { font:inherit; padding:11px 14px; border-radius:10px; border:1px solid #333; background:#1A1C19; color:var(--ink); width:min(320px,100%); }
   h2 { font-size:.92rem; text-transform:uppercase; letter-spacing:.08em; color:var(--soft); margin:22px 0 4px; }
   .bars div { display:flex; justify-content:space-between; padding:5px 0; border-bottom:1px solid #2C2F29; font-size:.85rem; }
+  .files { grid-template-columns:repeat(auto-fill,minmax(100px,1fr)); }
+  .fcard { position:relative; border-radius:10px; overflow:hidden; background:#1A1C19; aspect-ratio:1; }
+  .fcard img { width:100%; height:100%; object-fit:cover; display:block; }
+  .fcard .vph { display:flex; align-items:center; justify-content:center; height:100%; color:var(--soft); font-size:.7rem; letter-spacing:.06em; }
+  .fcard .g { position:absolute; left:0; right:0; bottom:0; padding:4px 6px; font-size:.66rem;
+              background:linear-gradient(transparent,rgba(0,0,0,.8)); color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .fcard .del { position:absolute; top:4px; right:4px; width:26px; height:26px; padding:0; border-radius:50%;
+                background:rgba(224,121,111,.92); color:#fff; font-size:1rem; line-height:1; }
 </style>
 </head>
 <body>
@@ -54,6 +62,10 @@
     <a class="lnk" id="folder" target="_blank" rel="noopener">Folder na Dysku</a>
     <a class="lnk" href="index.html">Galeria</a>
   </div>
+
+  <h2>Zdjęcia i filmy — usuwanie</h2>
+  <p class="sub">Usuwanie tutaj działa dla każdego zdjęcia, nie tylko własnych gościa. Plik trafia do Koszu na Dysku (30 dni na odzyskanie).</p>
+  <div class="grid files" id="files"></div>
 
   <h2>Najaktywniejsi goscie</h2>
   <div class="bars" id="guests"></div>
@@ -99,6 +111,7 @@
         $('#panel').hidden = false;
         setStatus(true, 'backend dziala · wersja ' + d.version + ' · ' + new Date(d.ts).toLocaleTimeString('pl-PL'));
         render(d);
+        loadFiles();
       })
       .catch(function (e) { setStatus(false, 'brak polaczenia z backendem (' + e.message + ')'); });
   }
@@ -135,6 +148,55 @@
   function esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
       return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c];
+    });
+  }
+
+  /* Lista plikow z mozliwoscia usuniecia cudzego zdjecia/filmu przez admina. */
+  function loadFiles() {
+    fetch(API + '?action=config&_=' + Date.now())
+      .then(function (r) { return r.json(); })
+      .then(function (cfg) {
+        if (!cfg.ok) throw new Error(cfg.error);
+        var q = "'" + cfg.folderId + "' in parents and trashed=false";
+        var params = 'q=' + encodeURIComponent(q) +
+          '&orderBy=' + encodeURIComponent('createdTime desc') +
+          '&pageSize=60&fields=' + encodeURIComponent('files(id,name,mimeType,appProperties)');
+        return fetch('https://www.googleapis.com/drive/v3/files?' + params, {
+          headers: { Authorization: 'Bearer ' + cfg.token }
+        }).then(function (r) { return r.json(); }).then(function (d) {
+          renderFiles(d.files || [], cfg.token);
+        });
+      })
+      .catch(function (e) { $('#files').innerHTML = '<p class="err">Nie udalo sie wczytac plikow: ' + esc(e.message) + '</p>'; });
+  }
+
+  function renderFiles(list, token) {
+    $('#files').innerHTML = list.map(function (f) {
+      var isVid = String(f.mimeType || '').indexOf('video') === 0;
+      var guest = (f.appProperties && f.appProperties.guest) || 'gosc';
+      return '<div class="fcard" data-id="' + f.id + '">' +
+        (isVid
+          ? '<div class="vph">FILM</div>'
+          : '<img src="https://drive.google.com/thumbnail?id=' + f.id + '&sz=w200" loading="lazy" alt="">') +
+        '<span class="g">' + esc(guest) + '</span>' +
+        '<button class="del" type="button" title="Usun ten plik">&times;</button>' +
+        '</div>';
+    }).join('') || '<p class="sub">Brak plikow.</p>';
+
+    Array.prototype.forEach.call($('#files').querySelectorAll('.del'), function (btn) {
+      btn.addEventListener('click', function () {
+        var card = btn.closest('.fcard');
+        var id = card.dataset.id;
+        if (!confirm('Usunac ten plik z galerii? Trafi do Koszu na Dysku (30 dni na odzyskanie).')) return;
+        fetch('https://www.googleapis.com/drive/v3/files/' + id, {
+          method: 'PATCH',
+          headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ trashed: true })
+        }).then(function (r) {
+          if (!r.ok) throw new Error('HTTP ' + r.status);
+          card.remove();
+        }).catch(function () { alert('Nie udalo sie usunac pliku.'); });
+      });
     });
   }
 
