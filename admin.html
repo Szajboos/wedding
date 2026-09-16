@@ -36,6 +36,9 @@
   .del-report { font-size:.76rem; padding:4px 10px; margin-left:6px; background:var(--bad); color:#fff; white-space:nowrap; }
   .files { grid-template-columns:repeat(auto-fill,minmax(100px,1fr)); }
   .fcard { position:relative; border-radius:10px; overflow:hidden; background:#1A1C19; aspect-ratio:1; }
+  .fcard.reported { outline:2px solid var(--bad); outline-offset:-2px; }
+  .fcard .rflag { position:absolute; top:0; left:0; right:0; z-index:1; text-align:center; font-size:.62rem;
+                  font-weight:600; padding:3px 0; background:var(--bad); color:#fff; }
   .fcard img { width:100%; height:100%; object-fit:cover; display:block; }
   .fcard .vph { display:flex; align-items:center; justify-content:center; height:100%; color:var(--soft); font-size:.7rem; letter-spacing:.06em; }
   .fcard .g { position:absolute; left:0; right:0; bottom:0; padding:4px 6px; font-size:.66rem;
@@ -59,6 +62,11 @@
 
 <div id="panel" hidden>
   <div class="grid" id="tiles"></div>
+
+  <div class="row">
+    <button id="site-toggle" type="button">…</button>
+    <span id="site-status" class="sub" style="margin:0"></span>
+  </div>
 
   <div class="row">
     <button class="primary" id="test" type="button">Test uploadu</button>
@@ -88,6 +96,7 @@
             sessionStorage.getItem('wesele.adminKey') ||
             CFG.adminKey || '';
   var timer = null;
+  var reportedIds = {};
 
   function $(s) { return document.querySelector(s); }
 
@@ -123,7 +132,26 @@
 
   function tile(n, l) { return '<div class="card"><div class="n">' + n + '</div><div class="l">' + l + '</div></div>'; }
 
+  function renderSiteToggle(enabled) {
+    var btn = $('#site-toggle');
+    btn.textContent = enabled ? 'Wyłącz stronę' : 'Włącz stronę';
+    btn.style.background = enabled ? 'var(--bad)' : 'var(--ok)';
+    btn.style.color = '#141513';
+    btn.style.fontWeight = '600';
+    $('#site-status').textContent = 'Stan strony dla gości: ' + (enabled ? 'WŁĄCZONA' : 'WYŁĄCZONA');
+  }
+
   function render(d) {
+    renderSiteToggle(d.siteEnabled !== false);
+
+    reportedIds = {};
+    (d.events || []).forEach(function (e) {
+      if (e.type === 'report') {
+        var fid = String(e.msg || '').split(' — ')[0];
+        if (fid) reportedIds[fid] = true;
+      }
+    });
+
     var free = d.quota && d.quota.limit
       ? fmtBytes(Number(d.quota.limit) - Number(d.quota.usage))
       : 'n/d';
@@ -213,10 +241,16 @@
   }
 
   function renderFiles(list) {
+    // Zgloszone pliki na sam start listy, zeby admin nie musial ich szukac.
+    list = list.slice().sort(function (a, b) {
+      return (reportedIds[b.id] ? 1 : 0) - (reportedIds[a.id] ? 1 : 0);
+    });
     $('#files').innerHTML = list.map(function (f) {
       var isVid = String(f.mimeType || '').indexOf('video') === 0;
       var guest = (f.appProperties && f.appProperties.guest) || 'gosc';
-      return '<div class="fcard" data-id="' + f.id + '">' +
+      var reported = !!reportedIds[f.id];
+      return '<div class="fcard' + (reported ? ' reported' : '') + '" data-id="' + f.id + '">' +
+        (reported ? '<span class="rflag">⚠ zgłoszono</span>' : '') +
         (isVid
           ? '<div class="vph">FILM</div>'
           : '<img src="https://drive.google.com/thumbnail?id=' + f.id + '&sz=w200" loading="lazy" alt="">') +
@@ -283,6 +317,17 @@
   $('#key').addEventListener('keydown', function (e) { if (e.key === 'Enter') { key = e.target.value.trim(); load(); } });
   $('#refresh').addEventListener('click', load);
   $('#test').addEventListener('click', testUpload);
+  $('#site-toggle').addEventListener('click', function () {
+    var turningOn = $('#site-toggle').textContent.indexOf('Włącz') === 0;
+    if (!confirm(turningOn ? 'Włączyć stronę z powrotem dla gości?' : 'Wyłączyć stronę dla wszystkich gości teraz?')) return;
+    fetch(API + '?action=toggleSite&key=' + encodeURIComponent(key) + '&on=' + (turningOn ? '1' : '0') + '&_=' + Date.now())
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (!d.ok) throw new Error(d.error);
+        renderSiteToggle(d.siteEnabled);
+      })
+      .catch(function (e) { alert('Nie udało się zmienić stanu strony: ' + e.message); });
+  });
 
   if (!key) { $('#need-key').hidden = false; setStatus(false, 'podaj klucz'); }
   else load();

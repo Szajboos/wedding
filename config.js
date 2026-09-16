@@ -14,9 +14,14 @@ window.WESELE_CONFIG = {
   welcomeText: 'Zrobiłeś zdjęcie? Wrzuć je tutaj — zobaczą je wszyscy goście.',
 
   /* Wyłącznik awaryjny: ustaw na false, zapisz i wgraj ten jeden plik,
-     żeby natychmiast wyłączyć stronę (bez zmian na GitHub Pages/Apps Script). */
+     żeby natychmiast wyłączyć stronę (bez zmian na GitHub Pages/Apps Script).
+     Da się to też zrobić przyciskiem w panelu admina — bez edycji plików. */
   siteEnabled: true,
   siteDisabledText: 'Zajrzyj tu za chwilę.',
+
+  /* Ranking "kto wgrał najwięcej" widoczny dla wszystkich gości nad galerią.
+     Ustaw na false, żeby go całkiem wyłączyć. */
+  showLeaderboard: true,
 
   /* Klucz panelu admina — musi być IDENTYCZNY jak ADMIN_KEY w Code.gs */
   adminKey: 'twojstaryjekomary',

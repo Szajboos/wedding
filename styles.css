@@ -137,6 +137,26 @@ svg { width: 22px; height: 22px; fill: currentColor; display: block; }
   -webkit-backdrop-filter: blur(10px);
 }
 
+.leaderboard {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 0 16px 10px;
+}
+.rank-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  font-size: .84rem;
+  box-shadow: var(--shadow);
+}
+.rank-medal { font-size: 1rem; }
+.rank-count { color: var(--ink-soft); }
+
 .chip {
   appearance: none;
   border: 1px solid var(--line);

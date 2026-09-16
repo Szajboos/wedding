@@ -86,7 +86,8 @@
     loading: false,
     localThumbs: {},    // id -> objectURL (wlasne, swiezo wgrane zdjecia)
     lbIndex: -1,
-    uploadMode: store.get('uploadMode') || 'direct'
+    uploadMode: store.get('uploadMode') || 'direct',
+    siteEnabled: true
   };
 
   state.deviceId = store.get('deviceId');
@@ -173,6 +174,8 @@
         if (!r || !r.ok) throw new Error((r && r.error) || 'Backend nie odpowiada');
         cfgCache = r; cfgAt = Date.now();
         state.folderId = r.folderId;
+        state.siteEnabled = r.siteEnabled !== false;
+        if (!state.siteEnabled) showDisabledUI();
         var ver = $('#ver');
         if (ver) ver.textContent = 'wersja ' + r.version;
         return r;
@@ -332,18 +335,41 @@
 
     var shown = state.items.filter(function (f) { return isMine(f) || isReady(f); });
     var guests = {};
-    shown.forEach(function (f) { guests[guestOf(f)] = 1; });
+    shown.forEach(function (f) { guests[guestOf(f)] = (guests[guestOf(f)] || 0) + 1; });
     var n = shown.length, g = Object.keys(guests).length;
     $('#count').textContent = n
       ? n + ' ' + plural(n, 'zdjęcie', 'zdjęcia', 'zdjęć') +
         ' od ' + g + ' ' + plural(g, 'gościa', 'gości', 'gości')
       : '';
+    renderLeaderboard(guests);
     $('#empty').hidden = list.length > 0;
     if (state.filter === 'mine' && !list.length && state.items.length) {
       $('#empty').querySelector('h2').textContent = 'Nie masz tu jeszcze zdjęć';
     } else {
       $('#empty').querySelector('h2').textContent = 'Jeszcze nic tu nie ma';
     }
+  }
+
+  var MEDALS = ['🥇', '🥈', '🥉'];
+  function renderLeaderboard(guests) {
+    var el = $('#leaderboard');
+    if (!el) return;
+    if (CFG.showLeaderboard === false) { el.hidden = true; return; }
+    var top = Object.keys(guests)
+      .map(function (name) { return { name: name, count: guests[name] }; })
+      .sort(function (a, b) { return b.count - a.count; })
+      .slice(0, 3);
+    if (!top.length) { el.hidden = true; return; }
+    el.innerHTML = top.map(function (t, i) {
+      return '<span class="rank-item"><span class="rank-medal">' + MEDALS[i] + '</span>' +
+        esc_(t.name) + ' <span class="rank-count">' + t.count + '</span></span>';
+    }).join('');
+    el.hidden = false;
+  }
+  function esc_(s) {
+    var d = document.createElement('div');
+    d.textContent = String(s || '');
+    return d.innerHTML;
   }
 
   /** Dysk generuje miniaturke kilka sekund po wgraniu — warto sprobowac ponownie. */
@@ -389,6 +415,7 @@
   }
 
   function enqueue(files) {
+    if (!state.siteEnabled) { toast(CFG.siteDisabledText || 'Strona jest tymczasowo wyłączona.', true); return; }
     var maxPhotoMB = CFG.maxPhotoMB || 20;
     var maxVideoMB = CFG.maxVideoMB || 2048;
     var maxBatch = CFG.maxFilesPerBatch || 40;
@@ -969,18 +996,20 @@
      7. Start
      --------------------------------------------------------------- */
 
+  function showDisabledUI() {
+    document.querySelector('.fab-bar').hidden = true;
+    $('#gallery').hidden = true;
+    $('#empty').hidden = false;
+    $('#empty').querySelector('h2').textContent = 'Strona tymczasowo wyłączona';
+    $('#welcome').textContent = CFG.siteDisabledText || 'Zajrzyj tu za chwilę.';
+  }
+
   function init() {
     $('#couple').textContent = CFG.coupleNames || 'Nasze wesele';
     $('#wdate').textContent = CFG.weddingDate || '';
 
-    if (CFG.siteEnabled === false) {
-      document.querySelector('.fab-bar').hidden = true;
-      $('#gallery').hidden = true;
-      $('#empty').hidden = false;
-      $('#empty').querySelector('h2').textContent = 'Strona tymczasowo wyłączona';
-      $('#welcome').textContent = CFG.siteDisabledText || 'Zajrzyj tu za chwilę.';
-      return;
-    }
+    // Wylacznik lokalny (edycja config.js) — dziala nawet gdy backend nie odpowiada.
+    if (CFG.siteEnabled === false) { showDisabledUI(); return; }
 
     $('#welcome').textContent = CFG.welcomeText || '';
     if (state.guest) $('#who').textContent = state.guest;
