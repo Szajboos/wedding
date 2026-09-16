@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Test wykonalnosci — Wesele</title>
+<style>
+  body { font: 15px/1.5 system-ui, sans-serif; max-width: 760px; margin: 0 auto; padding: 24px 18px 60px; background: #FAF8F4; color: #2E332C; }
+  h1 { font-size: 1.3rem; }
+  button { font: inherit; padding: 12px 20px; border: 0; border-radius: 999px; background: #5F7052; color: #fff; cursor: pointer; }
+  pre { background: #fff; border: 1px solid #ddd; border-radius: 10px; padding: 14px; white-space: pre-wrap; word-break: break-word; font-size: 13px; }
+  .ok { color: #2f7a2f; font-weight: 600; }
+  .bad { color: #B4453C; font-weight: 600; }
+  .hint { background: #fff6e0; border-left: 4px solid #C0A063; padding: 10px 14px; border-radius: 6px; }
+</style>
+</head>
+<body>
+<h1>Test wykonalnosci bezposredniego uploadu</h1>
+<p class="hint">
+  Ta strona sprawdza, czy przegladarka pozwala wyslac plik prosto na Dysk Google
+  (odczyt naglowka <code>Location</code> przy sesji wznawialnej).
+  <strong>Musi byc otwarta przez http(s)</strong> — nie z pliku na dysku.
+  Uruchom ja na telefonie, ktorego uzyja goscie.
+</p>
+<p><button id="run" type="button">Uruchom test</button></p>
+<pre id="out">Gotowy.</pre>
+
+<script src="config.js"></script>
+<script>
+var out = document.getElementById('out');
+function say(msg, cls) {
+  out.innerHTML += '\n' + (cls ? '<span class="' + cls + '">' + msg + '</span>' : msg);
+}
+
+document.getElementById('run').addEventListener('click', function () {
+  out.textContent = 'Start...';
+  run().catch(function (e) { say('PRZERWANE: ' + e.message, 'bad'); });
+});
+
+async function run() {
+  var API = (window.WESELE_CONFIG || {}).apiUrl || '';
+  if (API.indexOf('script.google.com') < 0) {
+    say('Najpierw uzupelnij apiUrl w config.js', 'bad');
+    return;
+  }
+
+  say('1) Pobieram konfiguracje z backendu...');
+  var cfgRes = await fetch(API + '?action=config&_=' + Date.now());
+  say('   HTTP ' + cfgRes.status + (cfgRes.ok ? '' : '  <- to jest problem'), cfgRes.ok ? 'ok' : 'bad');
+  var cfg = await cfgRes.json();
+  if (!cfg.ok) { say('   Backend: ' + cfg.error, 'bad'); return; }
+  say('   folderId = ' + cfg.folderId, 'ok');
+  say('   token = ' + String(cfg.token).slice(0, 12) + '...  (dlugosc ' + String(cfg.token).length + ')', 'ok');
+
+  say('\n2) Otwieram sesje wznawialna...');
+  var meta = {
+    name: 'TEST_' + Date.now() + '.bin',
+    parents: [cfg.folderId],
+    appProperties: { deviceId: 'probe', guest: 'TEST' }
+  };
+  var init = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&fields=id,name', {
+    method: 'POST',
+    headers: {
+      'Authorization': 'Bearer ' + cfg.token,
+      'Content-Type': 'application/json; charset=UTF-8',
+      'X-Upload-Content-Type': 'application/octet-stream',
+      'X-Upload-Content-Length': String(1024 * 1024)
+    },
+    body: JSON.stringify(meta)
+  });
+  say('   HTTP ' + init.status, init.ok ? 'ok' : 'bad');
+  if (!init.ok) { say('   ' + (await init.text()).slice(0, 300), 'bad'); return; }
+
+  var loc = init.headers.get('location') || init.headers.get('Location');
+  if (!loc) {
+    say('   Naglowek Location NIEDOSTEPNY dla skryptu.', 'bad');
+    say('\nWYNIK: sciezka A niedostepna — aplikacja uzyje trybu zapasowego (proxy).', 'bad');
+    say('W config.js nic nie zmieniasz; app.js przelaczy sie sam przy pierwszym pliku.');
+    return;
+  }
+  say('   Location OK: ' + loc.slice(0, 80) + '...', 'ok');
+
+  say('\n3) Wysylam testowy 1 MB...');
+  var blob = new Blob([new Uint8Array(1024 * 1024)]);
+  var t0 = Date.now();
+  var put = await fetch(loc, {
+    method: 'PUT',
+    headers: { 'Content-Range': 'bytes 0-' + (1024 * 1024 - 1) + '/' + (1024 * 1024) },
+    body: blob
+  });
+  say('   HTTP ' + put.status + ' w ' + (Date.now() - t0) + ' ms', (put.status === 200 || put.status === 201) ? 'ok' : 'bad');
+  var body = await put.text();
+  say('   ' + body.slice(0, 200));
+
+  if (put.status === 200 || put.status === 201) {
+    say('\nWYNIK: sciezka A dziala. Bezposredni upload na Dysk jest dostepny.', 'ok');
+    say('Pamietaj, zeby skasowac plik TEST_*.bin z folderu na Dysku.');
+  } else {
+    say('\nWYNIK: PUT odrzucony — aplikacja przelaczy sie na tryb zapasowy.', 'bad');
+  }
+}
+</script>
+</body>
+</html>

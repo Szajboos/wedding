@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kod QR do wydruku — Wesele</title>
+<style>
+  body { font: 15px/1.5 system-ui, sans-serif; background:#FAF8F4; color:#2E332C; margin:0; padding:24px 16px 60px; }
+  .wrap { max-width: 640px; margin: 0 auto; }
+  input { font:inherit; padding:12px 14px; width:100%; border:1px solid #ccc; border-radius:10px; margin-bottom:10px; }
+  button { font:inherit; padding:12px 22px; border:0; border-radius:999px; background:#5F7052; color:#fff; cursor:pointer; }
+  .card { background:#fff; border:1px solid #E4DFD5; border-radius:16px; padding:28px; text-align:center; margin-top:22px; }
+  .card h2 { font-family: Georgia, serif; font-size: 1.6rem; margin:0 0 4px; }
+  .card p  { margin:2px 0 16px; color:#6B7268; font-size:.9rem; }
+  #qr { display:flex; justify-content:center; }
+  #qr img, #qr canvas { width: 260px !important; height: 260px !important; }
+  .url { margin-top:14px; font-size:.85rem; word-break:break-all; color:#2E332C; }
+  @media print {
+    body { padding:0; background:#fff; }
+    .noprint { display:none; }
+    .card { border:1px dashed #bbb; page-break-inside: avoid; margin: 12mm auto; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="noprint">
+    <h1 style="font-size:1.2rem">Kod QR na stoliki</h1>
+    <p>Wklej adres strony (GitHub Pages) i wydrukuj. Kod ma min. 4 cm boku — sprawdz skanowanie z wydruku, nie z ekranu.</p>
+    <input id="url" type="url" placeholder="https://twojanazwa.github.io/wesele/">
+    <input id="title" type="text" placeholder="Ania &amp; Tomek">
+    <input id="sub" type="text" placeholder="Zeskanuj i wrzuc swoje zdjecia">
+    <p><button id="make" type="button">Generuj</button> <button id="print" type="button">Drukuj</button></p>
+  </div>
+
+  <div class="card">
+    <h2 id="c-title">Ania &amp; Tomek</h2>
+    <p id="c-sub">Zeskanuj i wrzuc swoje zdjecia</p>
+    <div id="qr"></div>
+    <div class="url" id="c-url"></div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script>
+function make() {
+  var url = document.getElementById('url').value.trim();
+  if (!url) { alert('Podaj adres strony'); return; }
+  document.getElementById('c-title').textContent = document.getElementById('title').value || 'Nasze wesele';
+  document.getElementById('c-sub').textContent = document.getElementById('sub').value || 'Zeskanuj i wrzuc swoje zdjecia';
+  document.getElementById('c-url').textContent = url;
+  var box = document.getElementById('qr');
+  box.innerHTML = '';
+  new QRCode(box, { text: url, width: 520, height: 520, correctLevel: QRCode.CorrectLevel.H });
+}
+document.getElementById('make').addEventListener('click', make);
+document.getElementById('print').addEventListener('click', function () { window.print(); });
+</script>
+</body>
+</html>
