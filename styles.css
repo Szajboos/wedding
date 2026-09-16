@@ -450,7 +450,6 @@ svg { width: 22px; height: 22px; fill: currentColor; display: block; }
 }
 .lb-meta { font-size: .85rem; color: #EDE9E2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lb-tools { display: flex; gap: 6px; flex: none; }
-@media (hover: none) { .lb-prev, .lb-next { display: none; } }
 
 /* ---------------------------- Toasty ----------------------------- */
 

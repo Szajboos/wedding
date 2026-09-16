@@ -1022,14 +1022,21 @@
       if (e.key === 'ArrowRight') lbMove(1);
     });
 
-    // Gesty na telefonie
-    var tx = 0, ty = 0;
+    // Gesty na telefonie — swipe zmienia zdjecie, ale nie wtedy gdy to
+    // czesc gestu szczypania (pinch-zoom), ktory moze uzywac 2 palcow.
+    var tx = 0, ty = 0, gestureFingers = 1;
     $('#lb-stage').addEventListener('touchstart', function (e) {
-      if (e.touches.length !== 1) return;
-      tx = e.touches[0].clientX; ty = e.touches[0].clientY;
+      gestureFingers = Math.max(gestureFingers, e.touches.length);
+      if (e.touches.length === 1) { tx = e.touches[0].clientX; ty = e.touches[0].clientY; }
+    }, { passive: true });
+    $('#lb-stage').addEventListener('touchmove', function (e) {
+      gestureFingers = Math.max(gestureFingers, e.touches.length);
     }, { passive: true });
     $('#lb-stage').addEventListener('touchend', function (e) {
-      if (!e.changedTouches.length) return;
+      if (e.touches.length > 0) return; // czekamy, az wszystkie palce zejda z ekranu
+      var wasMulti = gestureFingers > 1;
+      gestureFingers = 1;
+      if (wasMulti || !e.changedTouches.length) return;
       var dx = e.changedTouches[0].clientX - tx;
       var dy = e.changedTouches[0].clientY - ty;
       if (Math.abs(dx) > 55 && Math.abs(dx) > Math.abs(dy)) lbMove(dx < 0 ? 1 : -1);
