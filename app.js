@@ -244,7 +244,10 @@
 
   function loadFirstPage() {
     return getConfig(false)
-      .then(function () { return listFiles(null); })
+      .then(function () {
+        if (!state.siteEnabled) return { files: [] };
+        return listFiles(null);
+      })
       .then(function (data) {
         state.items = [];
         state.ids = {};
