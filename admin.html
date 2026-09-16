@@ -27,6 +27,8 @@
   td.t { color:var(--soft); white-space:nowrap; width:1%; }
   .err { color:var(--bad); }
   .okk { color:var(--ok); }
+  .warn { color:var(--gold); font-weight:600; }
+  tr.report-row { background:rgba(216,188,131,.12); }
   input { font:inherit; padding:11px 14px; border-radius:10px; border:1px solid #333; background:#1A1C19; color:var(--ink); width:min(320px,100%); }
   h2 { font-size:.92rem; text-transform:uppercase; letter-spacing:.08em; color:var(--soft); margin:22px 0 4px; }
   .bars div { display:flex; justify-content:space-between; padding:5px 0; border-bottom:1px solid #2C2F29; font-size:.85rem; }
@@ -61,6 +63,7 @@
     <button id="refresh" type="button">Odswiez</button>
     <a class="lnk" id="folder" target="_blank" rel="noopener">Folder na Dysku</a>
     <a class="lnk" href="index.html">Galeria</a>
+    <a class="lnk" href="slideshow.html" target="_blank" rel="noopener">Pokaz na TV</a>
   </div>
 
   <h2>Zdjęcia i filmy — usuwanie</h2>
@@ -129,6 +132,7 @@
       tile(fmtBytes(d.bytes), 'rozmiar albumu') +
       tile(d.videos, 'filmow') +
       tile('<span class="' + (d.counters.err ? 'err' : 'okk') + '">' + d.counters.err + '</span>', 'bledow') +
+      tile('<span class="' + (d.counters.report ? 'err' : 'okk') + '">' + (d.counters.report || 0) + '</span>', 'zgloszen') +
       tile(free, 'wolne na Dysku');
 
     $('#folder').href = d.folderUrl;
@@ -138,9 +142,10 @@
     }).join('') || '<div><span>brak danych</span><span></span></div>';
 
     $('#events').innerHTML = (d.events || []).map(function (e) {
-      var cls = /err|error/.test(e.type) ? 'err' : /ok/.test(e.type) ? 'okk' : '';
-      return '<tr><td class="t">' + new Date(e.ts).toLocaleTimeString('pl-PL') + '</td>' +
-             '<td class="t ' + cls + '">' + esc(e.type) + '</td>' +
+      var isReport = e.type === 'report';
+      var cls = isReport ? 'warn' : /err|error/.test(e.type) ? 'err' : /ok/.test(e.type) ? 'okk' : '';
+      return '<tr' + (isReport ? ' class="report-row"' : '') + '><td class="t">' + new Date(e.ts).toLocaleTimeString('pl-PL') + '</td>' +
+             '<td class="t ' + cls + '">' + (isReport ? '⚠ ' : '') + esc(e.type) + '</td>' +
              '<td>' + esc(e.guest ? e.guest + ' · ' : '') + esc(e.msg) + '</td></tr>';
     }).join('') || '<tr><td>brak zdarzen</td></tr>';
   }

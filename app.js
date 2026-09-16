@@ -908,6 +908,15 @@
     });
   }
 
+  function reportCurrent() {
+    var list = visibleItems();
+    var f = list[state.lbIndex];
+    if (!f) return;
+    if (!confirm('Zgłosić ' + (isVideo(f) ? 'ten film' : 'to zdjęcie') + ' administratorowi jako nieodpowiednie?')) return;
+    log('report', f.id + ' — ' + guestOf(f));
+    toast('Zgłoszono administratorowi. Dziękujemy.');
+  }
+
   /* ---------------------------------------------------------------
      6. Drobiazgi UI
      --------------------------------------------------------------- */
@@ -1013,6 +1022,7 @@
     $('#lb-close').addEventListener('click', closeLightbox);
     $('#lb-prev').addEventListener('click', function () { lbMove(-1); });
     $('#lb-next').addEventListener('click', function () { lbMove(1); });
+    $('#lb-report').addEventListener('click', reportCurrent);
     $('#lb-del').addEventListener('click', deleteCurrent);
 
     document.addEventListener('keydown', function (e) {
