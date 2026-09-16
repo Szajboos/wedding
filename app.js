@@ -384,11 +384,23 @@
   function enqueue(files) {
     var maxPhotoMB = CFG.maxPhotoMB || 20;
     var maxVideoMB = CFG.maxVideoMB || 2048;
+    var maxBatch = CFG.maxFilesPerBatch || 40;
+    var rateLimitCount = CFG.rateLimitCount || 60;
+    var rateWindowMs = (CFG.rateLimitWindowMin || 15) * 60 * 1000;
     var seen = store.getJSON('sent', []);
-    var added = 0, skipped = 0;
+    var added = 0, skipped = 0, blocked = 0;
+
+    if (files.length > maxBatch) {
+      toast('Na raz można wybrać maks. ' + maxBatch + ' plików — wybierz mniej i wyślij w kilku turach.', true);
+      files = Array.prototype.slice.call(files, 0, maxBatch);
+    }
+
+    var now = Date.now();
+    var times = store.getJSON('uploadTimes', []).filter(function (t) { return now - t < rateWindowMs; });
 
     Array.prototype.forEach.call(files, function (file) {
       if (!file || !file.size) return;
+      if (times.length + added >= rateLimitCount) { blocked++; return; }
       var isVid = String(file.type || '').indexOf('video') === 0;
       var limitMB = isVid ? maxVideoMB : maxPhotoMB;
       if (file.size > limitMB * 1024 * 1024) {
@@ -407,10 +419,14 @@
         offset: 0,
         error: null
       });
+      times.push(now);
       added++;
     });
 
+    store.setJSON('uploadTimes', times.slice(-200));
+
     if (skipped) toast(skipped === 1 ? 'To zdjęcie już wysłałeś.' : 'Pominięto ' + skipped + ' już wysłanych ' + plural(skipped, 'zdjęcia', 'zdjęcia', 'zdjęć') + '.');
+    if (blocked) toast('Wysłano już dużo plików w krótkim czasie — poczekaj kilka minut i spróbuj ponownie z resztą.', true);
     if (!added) return;
 
     batchNotified = false;
@@ -766,7 +782,7 @@
     var done = queue.filter(function (i) { return i.status === 'done'; }).length;
     var errs = queue.filter(function (i) { return i.status === 'err'; }).length;
     if (done && !errs) {
-      toast(done === 1 ? 'Zdjęcie dodane. Dziękujemy!' : 'Dodano ' + done + ' ' + plural(done, 'plik', 'pliki', 'plików') + '. Dziękujemy!');
+      toast(done === 1 ? 'Plik dodany. Dziękujemy!' : 'Dodano ' + done + ' ' + plural(done, 'plik', 'pliki', 'plików') + '. Dziękujemy!');
       setTimeout(function () {
         if (!queue.some(function (i) { return i.status === 'up' || i.status === 'wait'; })) {
           $('#uploads').hidden = true;
@@ -858,7 +874,7 @@
     var list = visibleItems();
     var f = list[state.lbIndex];
     if (!f || !isMine(f)) return;
-    if (!confirm('Usunąć to zdjęcie z galerii?')) return;
+    if (!confirm(isVideo(f) ? 'Usunąć ten film z galerii?' : 'Usunąć to zdjęcie z galerii?')) return;
 
     drive('https://www.googleapis.com/drive/v3/files/' + f.id, {
       method: 'PATCH',
@@ -869,7 +885,7 @@
       delete state.ids[f.id];
       state.items = state.items.filter(function (x) { return x.id !== f.id; });
       log('delete', f.name);
-      toast('Zdjęcie usunięte.');
+      toast('Plik usunięty.');
       render();
       var after = visibleItems();
       if (!after.length) closeLightbox();
@@ -935,6 +951,16 @@
   function init() {
     $('#couple').textContent = CFG.coupleNames || 'Nasze wesele';
     $('#wdate').textContent = CFG.weddingDate || '';
+
+    if (CFG.siteEnabled === false) {
+      document.querySelector('.fab-bar').hidden = true;
+      $('#gallery').hidden = true;
+      $('#empty').hidden = false;
+      $('#empty').querySelector('h2').textContent = 'Strona tymczasowo wyłączona';
+      $('#welcome').textContent = CFG.siteDisabledText || 'Zajrzyj tu za chwilę.';
+      return;
+    }
+
     $('#welcome').textContent = CFG.welcomeText || '';
     if (state.guest) $('#who').textContent = state.guest;
 
