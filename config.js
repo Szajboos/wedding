@@ -22,6 +22,8 @@ window.WESELE_CONFIG = {
   /* Ranking "kto wgrał najwięcej" widoczny dla wszystkich gości nad galerią.
      Ustaw na false, żeby go całkiem wyłączyć. */
   showLeaderboard: true,
+  censusIntervalSec: 120, // co ile sekund liczyć ranking i licznik z całego albumu
+  censusCounter: true, // licznik "N zdjęć" z całego albumu (false = tylko z wczytanej strony)
 
   /* Klucz panelu admina CELOWO nie jest tu wpisany — ten plik jest publiczny
      (repo GitHub Pages). Klucz mieszka w Apps Script jako Właściwość skryptu

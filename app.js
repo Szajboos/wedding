@@ -88,7 +88,8 @@
     localThumbs: {},    // id -> objectURL (wlasne, swiezo wgrane zdjecia)
     lbIndex: -1,
     uploadMode: store.get('uploadMode') || 'direct',
-    siteEnabled: true
+    siteEnabled: true,
+    census: null         // { guests: {name: count}, photos, videos, total } — patrz census()
   };
 
   state.deviceId = store.get('deviceId');
@@ -356,6 +357,49 @@
     if (toFront) state.items.unshift(f); else state.items.push(f);
   }
 
+  var CENSUS_FIELDS = 'nextPageToken,files(mimeType,appProperties/guest,videoMediaMetadata/durationMillis)';
+
+  function listCensus(pageToken) {
+    var q = "'" + state.folderId + "' in parents and trashed=false";
+    var params = 'q=' + encodeURIComponent(q) +
+      '&fields=' + encodeURIComponent(CENSUS_FIELDS) +
+      '&pageSize=1000' +
+      '&spaces=drive' +
+      (pageToken ? '&pageToken=' + encodeURIComponent(pageToken) : '');
+    return drive('https://www.googleapis.com/drive/v3/files?' + params)
+      .then(function (r) {
+        if (!r.ok) throw new Error('Drive ' + r.status);
+        return r.json();
+      });
+  }
+
+  var censusPromise = null;
+
+  /** Liczy caly album (nie tylko wczytana strone) — karmi ranking i licznik.
+      Wlasna, odizolowana sciezka: awaria tutaj nigdy nie dotyka siatki zdjec. */
+  function census() {
+    if (!state.folderId) return Promise.resolve();
+    if (censusPromise) return censusPromise;
+    var acc = { guests: {}, photos: 0, videos: 0, total: 0 };
+    function loop(pageToken, page) {
+      return listCensus(pageToken).then(function (data) {
+        (data.files || []).forEach(function (f) {
+          if (!isReady(f)) return;
+          var g = (f.appProperties && f.appProperties.guest) || 'Gość';
+          acc.guests[g] = (acc.guests[g] || 0) + 1;
+          if (isVideo(f)) acc.videos++; else acc.photos++;
+          acc.total++;
+        });
+        if (data.nextPageToken && page < 5) return loop(data.nextPageToken, page + 1);
+      });
+    }
+    censusPromise = loop(null, 1)
+      .then(function () { state.census = acc; renderCounts(); })
+      .catch(function (e) { log('error', 'census: ' + (e && e.message || e)); })
+      .then(function () { censusPromise = null; });
+    return censusPromise;
+  }
+
   function thumbUrl(f, size) {
     if (state.localThumbs[f.id]) return state.localThumbs[f.id];
     return THUMB + f.id + '&sz=w' + (size || 400);
@@ -402,21 +446,43 @@
     grid.innerHTML = '';
     grid.appendChild(frag);
 
-    var shown = state.items.filter(function (f) { return isMine(f) || isReady(f); });
-    var guests = {};
-    shown.forEach(function (f) { guests[guestOf(f)] = (guests[guestOf(f)] || 0) + 1; });
-    var n = shown.length, g = Object.keys(guests).length;
-    $('#count').textContent = n
-      ? n + ' ' + plural(n, 'zdjęcie', 'zdjęcia', 'zdjęć') +
-        ' od ' + g + ' ' + plural(g, 'gościa', 'gości', 'gości')
-      : '';
-    renderLeaderboard(guests);
+    renderCounts();
     $('#empty').hidden = list.length > 0;
     if (state.filter === 'mine' && !list.length && state.items.length) {
       $('#empty').querySelector('h2').textContent = 'Nie masz tu jeszcze zdjęć';
     } else {
       $('#empty').querySelector('h2').textContent = 'Jeszcze nic tu nie ma';
     }
+  }
+
+  /** Karmi ranking i licznik z pelnego census, jesli juz przyszedl; do tego czasu
+      (albo po jego awarii) liczy tylko z wczytanej strony, jak dawniej. */
+  function renderCounts() {
+    var guests, n, photos, videos;
+    if (state.census) {
+      guests = state.census.guests;
+      photos = state.census.photos;
+      videos = state.census.videos;
+      n = state.census.total;
+    } else {
+      var shown = state.items.filter(function (f) { return isMine(f) || isReady(f); });
+      guests = {};
+      shown.forEach(function (f) { guests[guestOf(f)] = (guests[guestOf(f)] || 0) + 1; });
+      photos = shown.filter(function (f) { return !isVideo(f); }).length;
+      videos = shown.length - photos;
+      n = shown.length;
+    }
+    var g = Object.keys(guests).length;
+    $('#count').textContent = n
+      ? (state.census
+          ? (videos
+              ? photos + ' ' + plural(photos, 'zdjęcie', 'zdjęcia', 'zdjęć') +
+                ' i ' + videos + ' ' + plural(videos, 'film', 'filmy', 'filmów')
+              : n + ' ' + plural(n, 'zdjęcie', 'zdjęcia', 'zdjęć'))
+          : n + ' ' + plural(n, 'zdjęcie', 'zdjęcia', 'zdjęć') +
+            ' od ' + g + ' ' + plural(g, 'gościa', 'gości', 'gości'))
+      : '';
+    renderLeaderboard(guests);
   }
 
   var MEDALS = ['🥇', '🥈', '🥉'];
@@ -1224,6 +1290,14 @@
       if (document.visibilityState === 'visible') refreshTop();
     });
 
+    // Census: ranking i licznik z calego albumu, nie tylko wczytanej strony.
+    var censusEnabled = !(CFG.showLeaderboard === false && CFG.censusCounter === false);
+    if (censusEnabled) {
+      setInterval(function () {
+        if (document.visibilityState === 'visible') census();
+      }, (CFG.censusIntervalSec || 120) * 1000);
+    }
+
     // Start — jedna proba ponowienia, zanim pokazemy blad (pierwsze polaczenie
     // na telefonie czasem pada raz i samo wraca).
     loadFirstPage()
@@ -1231,6 +1305,7 @@
       .then(function () {
         if (!state.guest) askName(false);
         log('open', 'start');
+        if (censusEnabled) census();
       })
       .catch(function (err) {
         toast('Nie udało się wczytać galerii: ' + friendlyError(err), true);
