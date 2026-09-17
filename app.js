@@ -273,6 +273,7 @@
   }
 
   var refreshPromise = null;
+  var pendingNew = 0;   // przybytki znalezione przez refreshTop() ukryte za plakietka "nowe zdjecia"
 
   /** Dociaga i uzgadnia pierwsza strone listy — tanie odswiezanie co kilkanascie sekund.
       Aktualizuje juz znane pliki (np. film, ktory dopiero teraz ma metadane), dodaje nowe
@@ -329,7 +330,14 @@
           state.items = kept;
         }
 
-        if (added || changed) {
+        // Czyste przybytki, gdy gosc jest przewiniety w dol i lightbox zamkniety: nie
+        // przeladowujemy siatki pod nim (Safari nie ma scroll anchoring) — pokazujemy
+        // plakietke zamiast tego. Zmiana gotowosci/usuniecie renderuje od razu (skraca
+        // strone, nie przesuwa jej w dol).
+        if (added > 0 && !changed && window.scrollY > 300 && state.lbIndex < 0) {
+          pendingNew += added;
+          showPill();
+        } else if (added || changed) {
           render();
           if (lbItemId) {
             if (!state.ids[lbItemId]) {
@@ -405,7 +413,29 @@
     return THUMB + f.id + '&sz=w' + (size || 400);
   }
 
+  function clearPill() {
+    if (!pendingNew) return;
+    pendingNew = 0;
+    var pill = $('#new-pill');
+    if (pill) pill.hidden = true;
+  }
+
+  function showPill() {
+    var pill = $('#new-pill');
+    if (!pill) return;
+    pill.textContent = '↑ ' + pendingNew + ' ' + plural(pendingNew, 'nowe zdjęcie', 'nowe zdjęcia', 'nowych zdjęć');
+    pill.hidden = false;
+  }
+
+  /** Wpuszcza wstrzymane przybytki do siatki: uzywana przez klik plakietki i przez
+      automatyczny powrot na gore — render() sam tez czysci plakietke na starcie. */
+  function flushPill() {
+    clearPill();
+    render();
+  }
+
   function render() {
+    clearPill();
     var list = visibleItems();
     var grid = $('#gallery');
     var frag = document.createDocumentFragment();
@@ -1197,6 +1227,20 @@
     $('#btn-refresh').addEventListener('click', function () {
       refreshTop().then(function () { toast('Galeria odświeżona.'); });
     });
+
+    $('#new-pill').addEventListener('click', function () {
+      flushPill();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+    var pillScrollTicking = false;
+    window.addEventListener('scroll', function () {
+      if (!pendingNew || pillScrollTicking) return;
+      pillScrollTicking = true;
+      requestAnimationFrame(function () {
+        pillScrollTicking = false;
+        if (pendingNew && window.scrollY < 100) flushPill();
+      });
+    }, { passive: true });
     Array.prototype.forEach.call(document.querySelectorAll('.chip'), function (c) {
       c.addEventListener('click', function () { setFilter(c.dataset.filter); });
     });

@@ -183,6 +183,26 @@ svg { width: 22px; height: 22px; fill: currentColor; display: block; }
 
 .count { margin-left: auto; font-size: .82rem; color: var(--ink-soft); }
 
+.new-pill {
+  position: fixed;
+  top: calc(env(safe-area-inset-top, 0px) + 130px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 20;
+  appearance: none;
+  border: none;
+  border-radius: 999px;
+  padding: 8px 18px;
+  background: var(--sage);
+  color: #fff;
+  font: inherit;
+  font-size: .85rem;
+  font-weight: 600;
+  box-shadow: var(--shadow-lg);
+  cursor: pointer;
+}
+@media (prefers-color-scheme: dark) { .new-pill { color: #1C1A17; } }
+
 /* ---------------------------- Galeria ---------------------------- */
 
 .grid {
