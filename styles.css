@@ -423,7 +423,7 @@ svg { width: 22px; height: 22px; fill: currentColor; display: block; }
   z-index: 70;
   background: #0B0B0A;
   display: grid;
-  grid-template-rows: 1fr auto;
+  grid-template-rows: minmax(0, 1fr) auto auto;
   animation: fade .2s ease both;
 }
 @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
@@ -454,22 +454,33 @@ svg { width: 22px; height: 22px; fill: currentColor; display: block; }
   -webkit-user-select: none;
 }
 .lb-stage iframe { width: min(100%, 1000px); height: 100%; border: 0; }
-.lb-video-hint {
-  position: absolute;
-  bottom: 10px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 1;
+/* Podpowiedz pod filmem, nie na nim — wczesniej zaslaniala pasek odtwarzacza Dysku. */
+.lb-vhint {
+  justify-self: center;
   font: inherit;
-  font-size: .8rem;
-  color: #fff;
-  background: rgba(20, 22, 19, .65);
-  border: 1px solid rgba(255, 255, 255, .3);
-  border-radius: var(--radius-sm);
-  padding: 6px 12px;
-  max-width: min(90%, 420px);
+  font-size: .75rem;
+  color: #EDE9E2;
+  background: transparent;
+  border: 0;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  padding: 6px 14px 0;
+  max-width: min(94%, 460px);
   cursor: pointer;
 }
+
+/* Wlasny pelny ekran (film): caly lightbox, z marginesem na wyciecie aparatu
+   i zaokraglone rogi — odtwarzacz Dysku sam tego nie robi i ucinal przyciski. */
+.lightbox:fullscreen {
+  padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) 0 env(safe-area-inset-left, 0px);
+}
+.lightbox:fullscreen .lb-stage { padding: 0; }
+.lightbox:fullscreen .lb-stage iframe { width: 100%; }
+.lightbox:fullscreen .lb-prev,
+.lightbox:fullscreen .lb-next,
+.lightbox:fullscreen .lb-close,
+.lightbox:fullscreen .lb-vhint { display: none; }
+.lightbox:fullscreen .lb-bar { padding-top: 4px; padding-bottom: calc(4px + env(safe-area-inset-bottom, 0px)); }
 .lb-stage .lb-loading { position: absolute; color: #fff9; font-size: .85rem; }
 
 .lb-btn {

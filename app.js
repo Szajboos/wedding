@@ -1029,7 +1029,33 @@
     showLightbox();
   }
 
+  function canFullscreen() {
+    return !!(document.fullscreenEnabled && $('#lb').requestFullscreen);
+  }
+
+  function toggleFullscreen() {
+    if (document.fullscreenElement) {
+      document.exitFullscreen().catch(function () {});
+      return;
+    }
+    $('#lb').requestFullscreen().then(function () {
+      // Film w poziomie; nie kazdy telefon pozwala — wtedy po prostu nic.
+      if (screen.orientation && screen.orientation.lock) {
+        screen.orientation.lock('landscape').catch(function () {});
+      }
+    }).catch(function () {});
+  }
+
+  function reloadVideo() {
+    var frame = $('#lb-stage iframe');
+    var spinner = $('#lb-stage .lb-spinner');
+    if (!frame) return;
+    if (spinner) spinner.hidden = false;
+    frame.src = frame.src;
+  }
+
   function closeLightbox() {
+    if (document.fullscreenElement) document.exitFullscreen().catch(function () {});
     $('#lb').hidden = true;
     $('#lb-stage').innerHTML = '';
     document.body.style.overflow = '';
@@ -1048,19 +1074,13 @@
       spinner.className = 'lb-spinner';
       stage.appendChild(spinner);
 
+      // Bez allowfullscreen: pelny ekran Dysku ucinal przyciski na telefonach
+      // z wycieciem aparatu — zamiast niego jest nasz przycisk #lb-fs.
       var frame = document.createElement('iframe');
       frame.src = 'https://drive.google.com/file/d/' + f.id + '/preview';
-      frame.allow = 'autoplay; fullscreen';
-      frame.setAttribute('allowfullscreen', '');
+      frame.allow = 'autoplay';
       frame.onload = function () { spinner.hidden = true; };
       stage.appendChild(frame);
-
-      var hint = document.createElement('button');
-      hint.type = 'button';
-      hint.className = 'lb-video-hint';
-      hint.textContent = 'Film się nie odtwarza? Dysk może go jeszcze przetwarzać — kliknij, aby odświeżyć';
-      hint.onclick = function () { spinner.hidden = false; frame.src = frame.src; };
-      stage.appendChild(hint);
     } else {
       var img = document.createElement('img');
       img.alt = 'Zdjęcie od ' + guestOf(f);
@@ -1073,6 +1093,8 @@
 
     updateLbMeta(f, list);
 
+    $('#lb-vhint').hidden = !isVideo(f);
+    $('#lb-fs').hidden = !(isVideo(f) && canFullscreen());
     $('#lb-dl').href = 'https://drive.google.com/uc?export=download&id=' + f.id;
     $('#lb-del').hidden = !isMine(f);
   }
@@ -1252,6 +1274,13 @@
     $('#lb-prev').addEventListener('click', function () { lbMove(-1); });
     $('#lb-next').addEventListener('click', function () { lbMove(1); });
     $('#lb-report').addEventListener('click', reportCurrent);
+    $('#lb-fs').addEventListener('click', toggleFullscreen);
+    $('#lb-vhint').addEventListener('click', reloadVideo);
+    document.addEventListener('fullscreenchange', function () {
+      if (!document.fullscreenElement && screen.orientation && screen.orientation.unlock) {
+        try { screen.orientation.unlock(); } catch (e) { /* ignorujemy */ }
+      }
+    });
     $('#lb-del').addEventListener('click', deleteCurrent);
 
     document.addEventListener('keydown', function (e) {
