@@ -82,10 +82,13 @@ svg { width: 22px; height: 22px; fill: currentColor; display: block; }
   position: sticky;
   top: 0;
   z-index: 30;
-  display: flex;
+  /* Trzy kolumny: pusta | imiona | przycisk — imiona zawsze na srodku
+     i nigdy nie wchodza pod przycisk z imieniem goscia (Android). */
+  display: grid;
+  grid-template-columns: 1fr minmax(0, auto) 1fr;
   align-items: center;
-  justify-content: center;
-  padding: calc(env(safe-area-inset-top, 0px) + 10px) 16px 10px;
+  column-gap: 8px;
+  padding: calc(env(safe-area-inset-top, 0px) + 10px) 8px 10px;
   background: color-mix(in srgb, var(--ivory) 88%, transparent);
   backdrop-filter: saturate(180%) blur(12px);
   -webkit-backdrop-filter: saturate(180%) blur(12px);
@@ -95,14 +98,14 @@ svg { width: 22px; height: 22px; fill: currentColor; display: block; }
 /* .brand jest w normalnym przeplywie, wiec naglowek rosnie razem z nim
    (wczesniej byl absolute i data wystawala pod dolna krawedz naglowka). */
 .brand {
+  grid-column: 2;
   min-width: 0;
-  max-width: calc(100% - 120px);
   text-align: center;
 }
 .brand h1 {
   font-family: var(--script);
   font-weight: 400;
-  font-size: clamp(2.1rem, 9vw, 3rem);
+  font-size: clamp(1.9rem, 8vw, 3rem);
   letter-spacing: .01em;
   margin: 0;
   line-height: 1.5;
@@ -113,9 +116,15 @@ svg { width: 22px; height: 22px; fill: currentColor; display: block; }
 .brand p { margin: -4px 0 0; font-size: .82rem; letter-spacing: .08em; text-transform: uppercase; color: var(--rose); }
 
 #btn-name {
-  position: absolute;
-  right: 8px;
-  top: calc(env(safe-area-inset-top, 0px) + 10px);
+  grid-column: 3;
+  justify-self: end;
+}
+/* Waskie telefony: imie goscia pod ikonka, zeby przycisk byl wezszy
+   i imiona pary mialy wiecej miejsca. */
+@media (max-width: 480px) {
+  #btn-name { flex-direction: column; gap: 0; padding: 2px 4px; }
+  #btn-name svg { width: 20px; height: 20px; }
+  #btn-name .who { font-size: .68rem; max-width: 8ch; }
 }
 .who {
   font-size: .78rem;
