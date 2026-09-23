@@ -1263,7 +1263,11 @@
 
     // Gesty na telefonie — swipe zmienia zdjecie, ale nie wtedy gdy to
     // czesc gestu szczypania (pinch-zoom), ktory moze uzywac 2 palcow.
-    var tx = 0, ty = 0, gestureFingers = 1;
+    // Po powiekszeniu jeden palec przesuwa powiekszone zdjecie — to nie swipe.
+    var tx = 0, ty = 0, gestureFingers = 1, lastPinchEnd = 0;
+    function isZoomed() {
+      return !!(window.visualViewport && window.visualViewport.scale > 1.01);
+    }
     $('#lb-stage').addEventListener('touchstart', function (e) {
       gestureFingers = Math.max(gestureFingers, e.touches.length);
       if (e.touches.length === 1) { tx = e.touches[0].clientX; ty = e.touches[0].clientY; }
@@ -1275,7 +1279,8 @@
       if (e.touches.length > 0) return; // czekamy, az wszystkie palce zejda z ekranu
       var wasMulti = gestureFingers > 1;
       gestureFingers = 1;
-      if (wasMulti || !e.changedTouches.length) return;
+      if (wasMulti) { lastPinchEnd = Date.now(); return; }
+      if (!e.changedTouches.length || isZoomed() || Date.now() - lastPinchEnd < 350) return;
       var dx = e.changedTouches[0].clientX - tx;
       var dy = e.changedTouches[0].clientY - ty;
       if (Math.abs(dx) > 55 && Math.abs(dx) > Math.abs(dy)) lbMove(dx < 0 ? 1 : -1);
