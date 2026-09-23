@@ -366,6 +366,7 @@ svg { width: 22px; height: 22px; fill: currentColor; display: block; }
 .bar { height: 4px; background: var(--line); }
 .bar span { display: block; height: 100%; width: 0; background: var(--sage); transition: width .25s ease; }
 
+.up-note { margin: 0 16px 4px; font-size: .78rem; color: var(--rose); text-align: center; }
 .up-list { list-style: none; margin: 0; padding: 4px 8px 10px; max-height: 42vh; overflow-y: auto; }
 .up-item { display: flex; align-items: center; gap: 10px; padding: 8px; border-radius: var(--radius-sm); }
 .up-item + .up-item { border-top: 1px solid var(--line); }

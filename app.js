@@ -659,14 +659,49 @@
       if (!next) break;
       runItem(next);
     }
+    if (!active && !queue.some(function (q) { return q.status === 'wait'; })) releaseWake();
     if (!active && queue.every(function (q) { return q.status === 'done' || q.status === 'err'; })) {
       finishBatch();
     }
   }
 
+  /* Blokada wygaszania ekranu na czas wysylki — najczestsza przyczyna
+     przerwanej wysylki filmu to telefon, ktory sam sie zablokowal. */
+  var wakeLock = null, wakePending = false;
+  function holdWake() {
+    if (wakeLock || wakePending || document.hidden || !navigator.wakeLock) return;
+    wakePending = true;
+    navigator.wakeLock.request('screen').then(function (l) {
+      wakeLock = l;
+      l.addEventListener('release', function () { wakeLock = null; });
+    }).catch(function () { /* brak zgody / nieobslugiwane — trudno */ })
+      .then(function () { wakePending = false; });
+  }
+  function releaseWake() {
+    if (wakeLock) { wakeLock.release().catch(function () {}); wakeLock = null; }
+  }
+
+  /* Czy blad wyglada na przerwe (ekran zablokowany, wyjscie ze strony, brak
+     sieci), a nie na prawdziwy problem? Wtedy wstrzymujemy zamiast pokazac blad. */
+  var lastHiddenAt = 0;
+  function wasInterrupted(err) {
+    if (err && err.code === 'session-gone') return false;
+    if (!/Przerwane połączenie|Przekroczono czas|Failed to fetch|NetworkError|Load failed/i.test(String(err && err.message || err))) {
+      return false;
+    }
+    return document.hidden || navigator.onLine === false || Date.now() - lastHiddenAt < 2 * 60 * 1000;
+  }
+
+  function resumePaused() {
+    var any = false;
+    queue.forEach(function (i) { if (i.status === 'pause') { i.status = 'wait'; any = true; } });
+    if (any) { renderQueue(); pump(); }
+  }
+
   function runItem(item) {
     active++;
     item.status = 'up';
+    holdWake();
     renderQueue();
 
     getConfig(false)
@@ -682,7 +717,8 @@
         };
         if (state.uploadMode === 'proxy') return uploadProxy(item, meta);
         return uploadDirect(item, meta).catch(function (err) {
-          if (err && (err.code === 'no-location' || err.code === 'init-failed')) {
+          // Przerwa w sieci (np. zablokowany ekran) to nie powod, by na stale przejsc na proxy.
+          if (err && (err.code === 'no-location' || (err.code === 'init-failed' && !wasInterrupted(err)))) {
             // Przegladarka blokuje bezposredni upload — przechodzimy na proxy i zostajemy przy nim.
             state.uploadMode = 'proxy';
             store.set('uploadMode', 'proxy');
@@ -711,6 +747,11 @@
         log('upload_ok', item.name + ' (' + mb(item.file.size) + ' MB)');
       })
       .catch(function (err) {
+        if (wasInterrupted(err)) {
+          item.status = 'pause';
+          log('upload_pause', item.name + ': ' + (err && err.message || err));
+          return;
+        }
         item.status = 'err';
         item.error = friendlyError(err);
         log('upload_err', item.name + ': ' + (err && err.message || err));
@@ -730,9 +771,89 @@
 
   /* -------------------- Sciezka A: prosto na Dysk ------------------ */
 
-  function uploadDirect(item, meta, isRetry) {
+  /* Wznawianie: adres sesji wysylki zapisujemy w pamieci urzadzenia, zeby po
+     zablokowaniu ekranu, wyjsciu ze strony albo nawet przeladowaniu wyslac
+     tylko brakujaca czesc pliku, a nie calosc od zera. Dysk trzyma sesje ~7 dni. */
+  var RESUME_TTL = 6 * 24 * 3600 * 1000;
+
+  function resumeAll() {
+    var all = store.getJSON('resume', {}), now = Date.now(), out = {};
+    Object.keys(all).forEach(function (k) {
+      if (all[k] && now - all[k].at < RESUME_TTL) out[k] = all[k];
+    });
+    return out;
+  }
+  function resumeGet(key) { return resumeAll()[key] || null; }
+  function resumeSet(key, entry) {
+    var all = resumeAll();
+    entry.at = Date.now();
+    all[key] = entry;
+    // Najwyzej 6 wpisow — pamiec trafia tez do ciasteczka (limit ~4 KB).
+    var keys = Object.keys(all).sort(function (a, b) { return all[b].at - all[a].at; });
+    keys.slice(6).forEach(function (k) { delete all[k]; });
+    store.setJSON('resume', all);
+  }
+  function resumeDrop(key) {
+    var all = resumeAll();
+    if (!(key in all)) return;
+    delete all[key];
+    store.setJSON('resume', all);
+  }
+
+  /* Odcisk pliku (poczatek + koniec, 64 KB kazdy) — zeby nigdy nie dokleic
+     reszty INNEGO pliku o tej samej nazwie i rozmiarze do starej sesji. */
+  function fingerprint(file) {
+    var n = 64 * 1024;
+    var parts = [file.slice(0, n), file.slice(Math.max(0, file.size - n))];
+    return Promise.all(parts.map(readBytes)).then(function (arrs) {
+      var h = 0x811c9dc5;   // FNV-1a 32 bit
+      arrs.forEach(function (a) {
+        for (var i = 0; i < a.length; i++) { h ^= a[i]; h = Math.imul(h, 16777619) >>> 0; }
+      });
+      return h.toString(16) + ':' + file.size;
+    }).catch(function () { return 'x:' + file.size; });
+  }
+  function readBytes(blob) {
+    return new Promise(function (resolve, reject) {
+      var fr = new FileReader();
+      fr.onload = function () { resolve(new Uint8Array(fr.result)); };
+      fr.onerror = function () { reject(fr.error); };
+      fr.readAsArrayBuffer(blob);
+    });
+  }
+
+  function uploadDirect(item, meta) {
+    return fingerprint(item.file).then(function (fp) {
+      var saved = item.sessionUrl ? { url: item.sessionUrl, fp: fp } : resumeGet(item.key);
+      if (!saved || saved.fp !== fp) {
+        if (saved) resumeDrop(item.key);
+        return startSession(item, meta, fp, false);
+      }
+      return querySession(saved.url, item.file.size).then(function (q) {
+        if (q.done) return q.file;
+        if (q.gone) {
+          resumeDrop(item.key);
+          item.sessionUrl = null;
+          return startSession(item, meta, fp, false);
+        }
+        var fromStore = !item.sessionUrl;
+        item.sessionUrl = saved.url;
+        item.offset = item.loaded = q.offset;
+        renderQueueProgress();
+        if (fromStore && q.offset > 0) {
+          toast('Wznawiam wysyłkę ' + item.file.name + ' od ' + pct(item) + ' %.');
+        }
+        log('upload_resume', item.name + ' @' + q.offset + '/' + item.file.size);
+        return pushChunks(item, saved.url);
+      });
+    }).then(function (created) {
+      return checkSize(item, meta, created);
+    });
+  }
+
+  function startSession(item, meta, fp, isRetry) {
     return getConfig(false).then(function (cfg) {
-      return fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&fields=id,name,mimeType,createdTime,appProperties', {
+      return fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&fields=id,name,mimeType,createdTime,appProperties,size', {
         method: 'POST',
         headers: {
           'Authorization': 'Bearer ' + cfg.token,
@@ -746,12 +867,67 @@
       });
     }).then(function (r) {
       if ((r.status === 401 || r.status === 403) && !isRetry) {
-        return getConfig(true).then(function () { return uploadDirect(item, meta, true); });
+        return getConfig(true).then(function () { return startSession(item, meta, fp, true); });
       }
       if (!r.ok) throw tagged('init-failed', 'Start wysyłki HTTP ' + r.status);
       var loc = r.headers.get('location') || r.headers.get('Location');
       if (!loc) throw tagged('no-location', 'Przeglądarka nie udostępnia adresu sesji');
+      item.sessionUrl = loc;
+      item.offset = item.loaded = 0;
+      resumeSet(item.key, { url: loc, fp: fp });
       return pushChunks(item, loc);
+    });
+  }
+
+  /* Pytamy Dysk, ile bajtow juz ma (PUT bez tresci, "bytes *" + "/rozmiar").
+     Dysk sam mowi, od ktorego bajtu kontynuowac — dlatego wznowiony plik
+     nie moze sie "rozjechac": kazdy bajt trafia dokladnie na swoje miejsce. */
+  function querySession(sessionUrl, total) {
+    return new Promise(function (resolve, reject) {
+      var xhr = new XMLHttpRequest();
+      xhr.open('PUT', sessionUrl, true);
+      xhr.setRequestHeader('Content-Range', 'bytes */' + total);
+      xhr.timeout = 30 * 1000;
+      xhr.onload = function () {
+        if (xhr.status === 308) return resolve({ offset: rangeEnd(xhr) || 0 });
+        if (xhr.status === 200 || xhr.status === 201) {
+          var file = {};
+          try { file = JSON.parse(xhr.responseText); } catch (e) { /* ignorujemy */ }
+          return resolve({ done: true, file: file });
+        }
+        if (xhr.status === 404 || xhr.status === 410) return resolve({ gone: true });
+        reject(new Error('Dysk odpowiedział HTTP ' + xhr.status));
+      };
+      xhr.onerror = function () { reject(new Error('Przerwane połączenie')); };
+      xhr.ontimeout = function () { reject(new Error('Przekroczono czas wysyłki')); };
+      xhr.send();
+    });
+  }
+
+  /** Naglowek "Range: bytes=0-N" -> N+1 (nastepny bajt do wyslania); null gdy brak. */
+  function rangeEnd(xhr) {
+    var m = /bytes=0-(\d+)/.exec(xhr.getResponseHeader('Range') || '');
+    return m ? Number(m[1]) + 1 : null;
+  }
+
+  /* Ostatnia kontrola: Dysk musi miec dokladnie tyle bajtow, ile ma plik.
+     Jesli nie — ta kopia idzie do kosza, a plik leci jeszcze raz od zera (raz). */
+  function checkSize(item, meta, created) {
+    resumeDrop(item.key);
+    item.sessionUrl = null;
+    if (!created || !created.id || created.size == null || Number(created.size) === item.file.size) {
+      return created;
+    }
+    log('upload_size_mismatch', item.name + ': ' + created.size + ' != ' + item.file.size);
+    return drive('https://www.googleapis.com/drive/v3/files/' + created.id, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ trashed: true })
+    }).catch(function () { /* i tak wysylamy od nowa */ }).then(function () {
+      if (item.sizeRetried) throw new Error('Plik dotarł uszkodzony — spróbuj wysłać go jeszcze raz');
+      item.sizeRetried = true;
+      toast('Plik ' + item.file.name + ' dotarł uszkodzony — wysyłam od nowa.', true);
+      return uploadDirect(item, meta);
     });
   }
 
@@ -771,8 +947,9 @@
         });
       }, 4).then(function (res) {
         if (res.status === 308) {
-          item.offset = end;
-          item.loaded = end;
+          // Dysk mowi, ile naprawde zapisal — od tego miejsca idzie nastepny kawalek.
+          item.offset = res.next != null ? res.next : end;
+          item.loaded = item.offset;
           renderQueueProgress();
           return step();
         }
@@ -801,7 +978,9 @@
           if (e.lengthComputable) onProgress(start + e.loaded);
         };
       }
-      xhr.onload = function () { resolve({ status: xhr.status, body: xhr.responseText }); };
+      xhr.onload = function () {
+        resolve({ status: xhr.status, body: xhr.responseText, next: xhr.status === 308 ? rangeEnd(xhr) : null });
+      };
       xhr.onerror = function () { reject(new Error('Przerwane połączenie')); };
       xhr.ontimeout = function () { reject(new Error('Przekroczono czas wysyłki')); };
       xhr.send(blob);
@@ -909,9 +1088,14 @@
 
   /* ------------------------ Panel wysylania ----------------------- */
 
+  var PAUSE_TEXT = 'Wstrzymane — wznowi się po powrocie na stronę';
+
   function renderQueue() {
     var ul = $('#up-list');
     ul.innerHTML = '';
+    $('#up-note').hidden = !queue.some(function (i) {
+      return i.status !== 'done' && i.status !== 'err' && guessMime(i.file).indexOf('video') === 0;
+    });
     queue.forEach(function (item) {
       var li = document.createElement('li');
       li.className = 'up-item';
@@ -937,7 +1121,8 @@
       sub.textContent =
         item.status === 'done' ? 'Gotowe' :
         item.status === 'err' ? item.error :
-        item.status === 'up' ? 'Wysyłanie…' : 'W kolejce';
+        item.status === 'up' ? 'Wysyłanie…' :
+        item.status === 'pause' ? PAUSE_TEXT : 'W kolejce';
       var mini = document.createElement('div');
       mini.className = 'up-mini';
       var fill = document.createElement('span');
@@ -985,7 +1170,8 @@
         sub.textContent =
           item.status === 'done' ? 'Gotowe' :
           item.status === 'err' ? item.error :
-          item.status === 'up' ? pct(item) + '% · ' + mb(item.file.size) + ' MB' : 'W kolejce';
+          item.status === 'up' ? pct(item) + '% · ' + mb(item.file.size) + ' MB' :
+          item.status === 'pause' ? PAUSE_TEXT + ' (' + pct(item) + '%)' : 'W kolejce';
       }
     });
   }
@@ -1348,13 +1534,13 @@
 
     // Sygnalizacja braku sieci
     function netState() { $('#offline').hidden = navigator.onLine !== false; }
-    window.addEventListener('online', function () { netState(); refreshTop(); pump(); });
+    window.addEventListener('online', function () { netState(); refreshTop(); resumePaused(); pump(); });
     window.addEventListener('offline', netState);
     netState();
 
     // Ostrzezenie przed zamknieciem karty w trakcie wysylki
     window.addEventListener('beforeunload', function (e) {
-      if (queue.some(function (i) { return i.status === 'up' || i.status === 'wait'; })) {
+      if (queue.some(function (i) { return i.status === 'up' || i.status === 'wait' || i.status === 'pause'; })) {
         e.preventDefault();
         e.returnValue = '';
       }
@@ -1365,7 +1551,13 @@
       if (document.visibilityState === 'visible') refreshTop();
     }, (CFG.galleryRefreshSec || 20) * 1000);
     document.addEventListener('visibilitychange', function () {
-      if (document.visibilityState === 'visible') refreshTop();
+      if (document.visibilityState === 'visible') {
+        refreshTop();
+        if (active) holdWake();
+        resumePaused();
+      } else {
+        lastHiddenAt = Date.now();
+      }
     });
 
     // Census: ranking i licznik z calego albumu, nie tylko wczytanej strony.
