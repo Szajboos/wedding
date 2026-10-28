@@ -1,7 +1,7 @@
 /* Service worker — celowo minimalny.
    Zasada: siec ma zawsze pierwszenstwo, cache sluzy tylko jako ratunek,
    zeby nikt nie utknal na starej wersji aplikacji w dniu wesela. */
-var CACHE = 'wesele-v1';
+var CACHE = 'wesele-v2';
 var SHELL = ['./', './index.html', './styles.css', './app.js', './config.js', './icons/icon.svg'];
 
 self.addEventListener('install', function (e) {

@@ -579,6 +579,14 @@
     return [file.name, file.size, file.lastModified || 0].join('|');
   }
 
+  /* fileId -> klucz dedupe, zeby po usunieciu zdjecia mozna je bylo wyslac ponownie.
+     Dodatkowo klucz trafia do appProperties.dk (limit Dysku: klucz+wartosc <= 124 B). */
+  var dkById = {};
+  function utf8Len(s) { return unescape(encodeURIComponent(s)).length; }
+  function keyOfFile(f) {
+    return dkById[f.id] || (f.appProperties && f.appProperties.dk) || null;
+  }
+
   var MIME_BY_EXT = {
     jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif',
     webp: 'image/webp', heic: 'image/heic', heif: 'image/heic',
@@ -715,6 +723,7 @@
             guest: String(state.guest || 'Gosc').slice(0, 60)
           }
         };
+        if (utf8Len(item.key) <= 120) meta.appProperties.dk = item.key;
         if (state.uploadMode === 'proxy') return uploadProxy(item, meta);
         return uploadDirect(item, meta).catch(function (err) {
           // Przerwa w sieci (np. zablokowany ekran) to nie powod, by na stale przejsc na proxy.
@@ -735,6 +744,7 @@
         item.loaded = item.file.size;
         rememberSent(item.key);
         if (created && created.id) {
+          dkById[created.id] = item.key;
           if (guessMime(item.file).indexOf('image') === 0) {
             try { state.localThumbs[created.id] = URL.createObjectURL(item.file); } catch (e) { /* ignorujemy */ }
           }
@@ -767,6 +777,13 @@
     var seen = store.getJSON('sent', []);
     seen.unshift(key);
     store.setJSON('sent', seen.slice(0, 400));
+  }
+
+  function forgetSent(key) {
+    if (!key) return;
+    var seen = store.getJSON('sent', []);
+    var out = seen.filter(function (k) { return k !== key; });
+    if (out.length !== seen.length) store.setJSON('sent', out);
   }
 
   /* -------------------- Sciezka A: prosto na Dysk ------------------ */
@@ -919,6 +936,7 @@
       return created;
     }
     log('upload_size_mismatch', item.name + ': ' + created.size + ' != ' + item.file.size);
+    forgetSent(item.key);
     return drive('https://www.googleapis.com/drive/v3/files/' + created.id, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
@@ -1315,10 +1333,12 @@
       body: JSON.stringify({ trashed: true })
     }).then(function (r) {
       if (!r.ok) throw new Error('HTTP ' + r.status);
+      var dk = keyOfFile(f);
+      forgetSent(dk);
       delete state.ids[f.id];
       state.items = state.items.filter(function (x) { return x.id !== f.id; });
       log('delete', f.name);
-      toast('Plik usunięty.');
+      toast('Usunięto', false, { label: 'Cofnij', ms: 10000, fn: function () { undoDelete(f, dk); } });
       render();
       var after = visibleItems();
       if (!after.length) closeLightbox();
@@ -1326,6 +1346,31 @@
     }).catch(function (e) {
       toast('Nie udało się usunąć zdjęcia.', true);
       log('error', 'delete: ' + e.message);
+    });
+  }
+
+  function undoDelete(f, dk) {
+    drive('https://www.googleapis.com/drive/v3/files/' + f.id, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ trashed: false })
+    }).then(function (r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      if (dk) {
+        dkById[f.id] = dk;
+        var seen = store.getJSON('sent', []);
+        if (seen.indexOf(dk) < 0) { seen.unshift(dk); store.setJSON('sent', seen.slice(0, 400)); }
+      }
+      addItem(f, false);
+      state.items.sort(function (a, b) {
+        return String(b.createdTime || '').localeCompare(String(a.createdTime || ''));
+      });
+      log('undo_delete', f.name);
+      toast('Przywrócono.');
+      render();
+    }).catch(function (e) {
+      toast('Nie udało się cofnąć usunięcia.', true);
+      log('error', 'undo: ' + e.message);
     });
   }
 
@@ -1342,16 +1387,30 @@
      6. Drobiazgi UI
      --------------------------------------------------------------- */
 
-  function toast(msg, isErr) {
+  function toast(msg, isErr, action) {
     var el = document.createElement('div');
     el.className = 'toast' + (isErr ? ' err' : '');
     el.textContent = msg;
+    if (action) {
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.textContent = action.label;
+      btn.className = 'toast-action';
+      btn.style.cssText = 'margin-left:12px;font-weight:700;text-decoration:underline;background:none;border:0;color:inherit;font:inherit;cursor:pointer;pointer-events:auto;padding:4px';
+      btn.addEventListener('click', function () {
+        btn.disabled = true;
+        if (el.parentNode) el.parentNode.removeChild(el);
+        action.fn();
+      });
+      el.style.pointerEvents = 'auto';
+      el.appendChild(btn);
+    }
     $('#toasts').appendChild(el);
     setTimeout(function () {
       el.style.opacity = '0';
       el.style.transition = 'opacity .3s';
       setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 320);
-    }, isErr ? 5000 : 3000);
+    }, action && action.ms ? action.ms : (isErr ? 5000 : 3000));
   }
 
   function askName(force) {

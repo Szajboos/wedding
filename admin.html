@@ -81,6 +81,11 @@
   <p class="sub">Usuwanie tutaj działa dla każdego zdjęcia, nie tylko własnych gościa. Plik trafia do Koszu na Dysku (30 dni na odzyskanie).</p>
   <div class="grid files" id="files"></div>
 
+  <h2>Kosz — przywracanie</h2>
+  <p class="sub">Pliki usunięte przez gości lub admina, jeszcze w Koszu na Dysku. „Przywróć” zwraca plik do galerii.</p>
+  <div class="row"><button id="trash-refresh" type="button">Odśwież kosz</button></div>
+  <div id="trash" style="display:flex;flex-direction:column;gap:6px"></div>
+
   <h2>Najaktywniejsi goście</h2>
   <div class="bars" id="guests"></div>
 
@@ -133,6 +138,7 @@
         setStatus(true, 'backend działa · wersja ' + d.version + ' · ' + new Date(d.ts).toLocaleTimeString('pl-PL'));
         render(d);
         loadFiles();
+        loadTrash();
       })
       .catch(function (e) { setStatus(false, 'brak połączenia z backendem (' + esc(e.message) + ')'); });
   }
@@ -243,6 +249,41 @@
       .catch(function (e) { $('#files').innerHTML = '<p class="err">Nie udało się wczytać plików: ' + esc(e.message) + '</p>'; });
   }
 
+  /* Kosz: lista i przywracanie przez backend (klucz admina). */
+  function loadTrash() {
+    fetch(API + '?action=adminTrashList&key=' + encodeURIComponent(key) + '&_=' + Date.now())
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (!d.ok) throw new Error(d.error || 'blad');
+        renderTrash(d.files || []);
+      })
+      .catch(function (e) { $('#trash').innerHTML = '<p class="err">Nie udało się wczytać kosza: ' + esc(e.message) + '</p>'; });
+  }
+
+  function restoreFile(id) {
+    return fetch(API + '?action=adminRestore&key=' + encodeURIComponent(key) +
+      '&id=' + encodeURIComponent(id) + '&_=' + Date.now())
+      .then(function (r) { return r.json(); })
+      .then(function (d) { if (!d.ok) throw new Error(d.error || 'blad'); });
+  }
+
+  function renderTrash(list) {
+    $('#trash').innerHTML = list.map(function (f) {
+      var guest = (f.appProperties && f.appProperties.guest) || 'gość';
+      return '<div class="trow" data-id="' + esc(f.id) + '" style="display:flex;gap:10px;align-items:center;justify-content:space-between">' +
+        '<span>' + esc(guest) + ' · ' + esc(f.name) + '</span>' +
+        '<button class="restore" type="button">Przywróć</button></div>';
+    }).join('') || '<p class="sub">Kosz jest pusty.</p>';
+    Array.prototype.forEach.call($('#trash').querySelectorAll('.restore'), function (btn) {
+      btn.addEventListener('click', function () {
+        var row = btn.closest('.trow');
+        btn.disabled = true; btn.textContent = '...';
+        restoreFile(row.dataset.id).then(function () { loadTrash(); loadFiles(); })
+          .catch(function () { alert('Nie udało się przywrócić pliku.'); btn.disabled = false; btn.textContent = 'Przywróć'; });
+      });
+    });
+  }
+
   function renderFiles(list) {
     // Zgloszone pliki na sam start listy, zeby admin nie musial ich szukac.
     list = list.slice().sort(function (a, b) {
@@ -267,7 +308,7 @@
         var card = btn.closest('.fcard');
         var id = card.dataset.id;
         if (!confirm('Usunąć ten plik z galerii? Trafi do Koszu na Dysku (30 dni na odzyskanie).')) return;
-        trashFile(id).then(function () { card.remove(); })
+        trashFile(id).then(function () { card.remove(); loadTrash(); })
           .catch(function () { alert('Nie udało się usunąć pliku.'); });
       });
     });
@@ -319,6 +360,7 @@
   $('#key-ok').addEventListener('click', function () { key = $('#key').value.trim(); load(); });
   $('#key').addEventListener('keydown', function (e) { if (e.key === 'Enter') { key = e.target.value.trim(); load(); } });
   $('#refresh').addEventListener('click', load);
+  $('#trash-refresh').addEventListener('click', loadTrash);
   $('#test').addEventListener('click', testUpload);
   $('#site-toggle').addEventListener('click', function () {
     var turningOn = $('#site-toggle').textContent.indexOf('Włącz') === 0;
